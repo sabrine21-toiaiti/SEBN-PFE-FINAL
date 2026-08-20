@@ -1,0 +1,67 @@
+@page
+@model SebnWeb.Pages.FluxVideoModel
+@{ ViewData["Title"] = "Flux vidéo"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Surveillance en temps réel</div>
+        <div style="font-size:13px; color:#6b6b70;">Détection automatique des non-conformités par vision par ordinateur</div>
+    </div>
+</div>
+
+@if (!Model.ApiDisponible)
+{
+    <div class="alert alert-warning">
+        ⚠️ Le microservice IA (<code>ia-service</code>) n'est pas accessible actuellement.
+        Si l'application vient de démarrer (plan gratuit), le service met parfois
+        30 à 60 secondes à se réveiller — réessayez dans une minute.
+    </div>
+}
+else
+{
+    <span class="badge badge-warning pulse mb-3">MODE SIMULATION — connecté au microservice IA</span>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="sebn-kpi text-center">
+            @if (Model.ImageBase64 != null)
+            {
+                <img src="data:image/png;base64,@Model.ImageBase64" class="img-fluid rounded" />
+            }
+            else
+            {
+                <div class="text-muted py-5">Cliquez sur « Capturer une image » pour démarrer.</div>
+            }
+        </div>
+    </div>
+    <div class="col-md-4">
+        <form method="post" asp-page-handler="Capturer">
+            <div class="sebn-kpi mb-3">
+                <label class="form-label">Poste surveillé</label>
+                <select class="form-select mb-3" asp-for="IdPoste">
+                    @foreach (var p in Model.Postes)
+                    {
+                        <option value="@p.IdPoste">@p.IdPoste — @p.LigneProduction</option>
+                    }
+                </select>
+                <button type="submit" class="btn btn-sebn w-100" @(Model.ApiDisponible ? "" : "disabled")>
+                    ▶️ Capturer une image
+                </button>
+            </div>
+        </form>
+
+        @if (Model.Anomalie != null)
+        {
+            <div class="alert alert-danger">
+                <strong>⚠️ @Model.Anomalie.TypeAnomalie détecté</strong><br />
+                Classe : <code>@Model.Anomalie.Classe</code><br />
+                Confiance : @((int)(Model.Anomalie.Confiance * 100))%
+            </div>
+        }
+        else if (Model.ImageBase64 != null)
+        {
+            <div class="alert alert-success">✅ Poste conforme</div>
+        }
+    </div>
+</div>

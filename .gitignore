@@ -1,0 +1,28 @@
+# .NET
+SebnWeb/bin/
+SebnWeb/obj/
+SebnWeb/Data/*.json
+SebnWeb/Data/*.db
+*.log
+*.tmp
+*.temp
+*.user
+*.suo
+*.pfx
+*.key
+*.pem
+run_output.txt
+Téléchargements/
+
+# Python
+ia-service/venv/
+ia-service/__pycache__/
+ia-service/*.py[cod]
+ia-service/data/
+**/__pycache__/
+
+# OS / editor
+.DS_Store
+.vscode/
+.vs/
+.idea/

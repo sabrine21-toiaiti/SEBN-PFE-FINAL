@@ -1,0 +1,82 @@
+@page
+@model SebnWeb.Pages.HistoriqueModel
+@{ ViewData["Title"] = "Historique"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Historique des non-conformités</div>
+        <div style="font-size:13px; color:#6b6b70;">Recherche, filtrage et clôture des anomalies</div>
+    </div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3">
+        <select class="form-select" name="TypeFiltre" onchange="this.form.submit()">
+            @foreach (var t in new[] { "Tous", "Qualité", "Production", "5S" })
+            {
+                <option value="@t" selected="@(t == Model.TypeFiltre)">@t</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="StatutFiltre" onchange="this.form.submit()">
+            <option value="Tous" selected="@(Model.StatutFiltre=="Tous")">Tous les statuts</option>
+            <option value="NON_TRAITEE" selected="@(Model.StatutFiltre=="NON_TRAITEE")">Non traitée</option>
+            <option value="CORRIGEE" selected="@(Model.StatutFiltre=="CORRIGEE")">Corrigée</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="PosteFiltre" onchange="this.form.submit()">
+            <option value="Tous" selected="@(Model.PosteFiltre=="Tous")">Tous les postes</option>
+            @foreach (var p in Model.Postes)
+            {
+                <option value="@p.IdPoste" selected="@(p.IdPoste==Model.PosteFiltre)">@p.IdPoste</option>
+            }
+        </select>
+    </div>
+</form>
+
+<p class="text-muted">@Model.Historique.Count résultat(s)</p>
+
+<div class="sebn-kpi">
+    <div class="table-responsive" style="max-height:480px;">
+        <table class="table table-sm table-hover">
+            <thead>
+                <tr><th>ID</th><th>Date/Heure</th><th>Type</th><th>Défaut</th><th>Confiance</th><th>Ligne</th><th>Opérateur</th><th>Statut</th><th></th></tr>
+            </thead>
+            <tbody>
+            @foreach (var a in Model.Historique)
+            {
+                <tr>
+                    <td>#@a.IdAnomalie</td>
+                    <td>@a.DateHeure.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@a.TypeAnomalie</td>
+                    <td>@a.ClasseYolo</td>
+                    <td>@((int)(a.Confiance*100))%</td>
+                    <td>@Model.LignesPostes.GetValueOrDefault(a.IdPoste, a.IdPoste)</td>
+                    <td>@Model.NomsOperateurs.GetValueOrDefault(a.MatriculeOp, a.MatriculeOp)</td>
+                    <td>
+                        @if (a.Statut == SebnWeb.Models.StatutAnomalie.Corrigee)
+                        {
+                            <span class="badge badge-success">Corrigée</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-danger">Non traitée</span>
+                        }
+                    </td>
+                    <td>
+                        @if (a.Statut == SebnWeb.Models.StatutAnomalie.NonTraitee &&
+                             (Model.RoleActuel == "Superviseur Qualité" || Model.RoleActuel == "Administrateur"))
+                        {
+                            <form method="post" asp-page-handler="Cloturer" asp-route-id="@a.IdAnomalie">
+                                <button class="btn btn-sm btn-outline-success">Clôturer</button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

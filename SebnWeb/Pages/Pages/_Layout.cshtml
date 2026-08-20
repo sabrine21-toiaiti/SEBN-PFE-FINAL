@@ -1,0 +1,65 @@
+@{
+    var nomAffichage = Context.Session.GetString("NomAffichage");
+    var role = Context.Session.GetString("Role");
+    var page = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
+}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] | SEBN</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="~/css/site.css" rel="stylesheet" />
+</head>
+<body>
+@if (nomAffichage == null)
+{
+    @RenderBody()
+}
+else
+{
+    <button class="sebn-toggle" id="sebnToggle" aria-label="Ouvrir le menu">☰</button>
+    <div class="sebn-overlay" id="sebnOverlay"></div>
+
+    <div class="d-flex">
+        <nav class="sebn-sidebar" id="sebnSidebar">
+            <img src="~/images/logo_sebn.png" style="width:150px; margin-bottom:20px;" />
+            <div class="user-name">@nomAffichage</div>
+            <div class="user-role">@role</div>
+
+            <a href="/Dashboard" class="@(page=="/Dashboard"?"active":"")">📊 <span>Dashboard</span></a>
+            <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Flux vidéo</span></a>
+            <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
+            @if (role == "Administrateur PIT")
+            {
+                <a href="/Administration" class="@(page=="/Administration"?"active":"")">⚙️ <span>Administration</span></a>
+            }
+            <hr style="border-color: rgba(255,255,255,0.15); margin: 18px 0;" />
+            <form method="post" action="/Index?handler=Logout">
+                <button type="submit" class="btn btn-sm btn-outline-light w-100">Se déconnecter</button>
+            </form>
+        </nav>
+        <main class="flex-grow-1 p-4">
+            @RenderBody()
+        </main>
+    </div>
+}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const toggle = document.getElementById('sebnToggle');
+    const sidebar = document.getElementById('sebnSidebar');
+    const overlay = document.getElementById('sebnOverlay');
+    function closeSidebar() {
+        sidebar?.classList.remove('open');
+        document.body.classList.remove('sidebar-open');
+    }
+    toggle?.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        document.body.classList.toggle('sidebar-open');
+    });
+    overlay?.addEventListener('click', closeSidebar);
+    document.querySelectorAll('.sebn-sidebar a').forEach(a => a.addEventListener('click', closeSidebar));
+</script>
+</body>
+</html>

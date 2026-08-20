@@ -1,0 +1,54 @@
+@page
+@model SebnWeb.Pages.AdministrationModel
+@{ ViewData["Title"] = "Administration"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Administration système</div>
+        <div style="font-size:13px; color:#6b6b70;">Gestion des postes, caméras et comptes utilisateurs</div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#postes">🖥️ Postes & Caméras</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#comptes">👥 Comptes utilisateurs</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#params">🎛️ Paramètres IA</a></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="postes">
+        <div class="sebn-kpi">
+            <table class="table">
+                <thead><tr><th>Poste</th><th>Ligne</th><th>Caméra</th></tr></thead>
+                <tbody>
+                @foreach (var p in Model.Postes)
+                {
+                    <tr><td>@p.IdPoste</td><td>@p.LigneProduction</td><td>@p.IdCamera</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="comptes">
+        <div class="sebn-kpi">
+            <table class="table">
+                <thead><tr><th>Login</th><th>Rôle</th><th>Nom affiché</th></tr></thead>
+                <tbody>
+                @foreach (var u in Model.Utilisateurs)
+                {
+                    <tr><td>@u.Login</td><td>@u.Role.Libelle()</td><td>@u.NomAffichage</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="tab-pane fade" id="params">
+        <div class="sebn-kpi">
+            <label class="form-label">Seuil de confiance minimal</label>
+            <input type="range" class="form-range" min="0" max="1" step="0.05" value="0.5" />
+            <label class="form-label mt-3">Timeout perte caméra (secondes)</label>
+            <input type="number" class="form-control" style="max-width:150px;" value="5" />
+            <button class="btn btn-sebn mt-3">Enregistrer</button>
+        </div>
+    </div>
+</div>

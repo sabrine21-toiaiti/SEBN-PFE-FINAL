@@ -1,0 +1,193 @@
+{
+  "db_path": "C:/Users/asus/Desktop/app pfe/SEBN-DOTNET/SebnWeb/Data/sebn.db",
+  "exists": true,
+  "tables": [
+    [
+      "Anomalies",
+      "table"
+    ],
+    [
+      "Cameras",
+      "table"
+    ],
+    [
+      "Operateurs",
+      "table"
+    ],
+    [
+      "Postes",
+      "table"
+    ],
+    [
+      "SeedState",
+      "table"
+    ],
+    [
+      "Utilisateurs",
+      "table"
+    ],
+    [
+      "sqlite_sequence",
+      "table"
+    ]
+  ],
+  "foreign_keys_enabled": 0,
+  "table_info": {
+    "Anomalies": {
+      "columns": [
+        [
+          0,
+          "IdAnomalie",
+          "INTEGER",
+          0,
+          null,
+          1
+        ],
+        [
+          1,
+          "DateHeure",
+          "TEXT",
+          1,
+          null,
+          0
+        ],
+        [
+          2,
+          "TypeAnomalie",
+          "TEXT",
+          1,
+          null,
+          0
+        ],
+        [
+          3,
+          "ClasseYolo",
+          "TEXT",
+          1,
+          null,
+          0
+        ],
+        [
+          4,
+          "Confiance",
+          "REAL",
+          1,
+          null,
+          0
+        ],
+        [
+          5,
+          "ImagePreuve",
+          "TEXT",
+          1,
+          null,
+          0
+        ],
+        [
+          6,
+          "Statut",
+          "INTEGER",
+          1,
+          "0",
+          0
+        ],
+        [
+          7,
+          "IdPoste",
+          "TEXT",
+          1,
+          null,
+          0
+        ],
+        [
+          8,
+          "MatriculeOp",
+          "TEXT",
+          1,
+          null,
+          0
+        ]
+      ],
+      "foreign_keys": [
+        [
+          0,
+          0,
+          "Operateurs",
+          "MatriculeOp",
+          "MatriculeOp",
+          "NO ACTION",
+          "NO ACTION",
+          "NONE"
+        ],
+        [
+          1,
+          0,
+          "Postes",
+          "IdPoste",
+          "IdPoste",
+          "NO ACTION",
+          "NO ACTION",
+          "NONE"
+        ]
+      ],
+      "count": 420,
+      "sample": [
+        [
+          1,
+          "2026-07-22 08:07:00",
+          "Production",
+          "cable_mal_clipse",
+          0.71,
+          "captures/anomalie_0001.jpg",
+          1,
+          "P03",
+          "OP107"
+        ],
+        [
+          2,
+          "2026-07-20 09:15:00",
+          "Production",
+          "cable_mal_clipse",
+          0.76,
+          "captures/anomalie_0002.jpg",
+          1,
+          "P02",
+          "OP107"
+        ],
+        [
+          3,
+          "2026-07-18 15:23:00",
+          "Qualité",
+          "connecteur_manquant",
+          0.87,
+          "captures/anomalie_0003.jpg",
+          1,
+          "P04",
+          "OP107"
+        ],
+        [
+          4,
+          "2026-07-21 08:54:00",
+          "Production",
+          "sous_ensemble_incomplet",
+          0.69,
+          "captures/anomalie_0004.jpg",
+          1,
+          "P01",
+          "OP104"
+        ],
+        [
+          5,
+          "2026-07-18 06:32:00",
+          "5S",
+          "poste_desordre",
+          0.76,
+          "captures/anomalie_0005.jpg",
+          1,
+          "P01",
+          "OP101"
+        ]
+      ]
+    }
+  }
+}

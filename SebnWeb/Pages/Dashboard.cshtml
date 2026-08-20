@@ -1,0 +1,98 @@
+@page
+@model SebnWeb.Pages.DashboardModel
+@using System.Text.Json
+@{ ViewData["Title"] = "Dashboard"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Dashboard décisionnel</div>
+        <div style="font-size:13px; color:#6b6b70;">Indicateurs de performance qualité, production et 5S</div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="sebn-kpi">
+            <div class="sebn-kpi-value">@Model.Stats.tauxConformite %</div>
+            <div class="sebn-kpi-label">Taux de conformité</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="sebn-kpi">
+            <div class="sebn-kpi-value">@Model.Stats.total</div>
+            <div class="sebn-kpi-label">Total non-conformités</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="sebn-kpi">
+            <div class="sebn-kpi-value">@Model.Stats.nonTraitees</div>
+            <div class="sebn-kpi-label">Non traitées</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="sebn-kpi">
+            <div class="sebn-kpi-value">@Model.Stats.aujourdhui</div>
+            <div class="sebn-kpi-label">Aujourd'hui</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="sebn-kpi">
+            <h6>Répartition par type</h6>
+            <canvas id="chartType" height="180"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="sebn-kpi">
+            <h6>Non-conformités par ligne</h6>
+            <canvas id="chartPoste" height="180"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="sebn-kpi mb-4">
+    <h6>Évolution sur 14 jours</h6>
+    <canvas id="chartEvolution" height="90"></canvas>
+</div>
+
+<div class="sebn-kpi">
+    <h6>Top 5 des défauts les plus fréquents</h6>
+    @{ var maxTop = Model.TopDefauts.Count > 0 ? Model.TopDefauts[0].total : 1; }
+    @foreach (var (classe, total) in Model.TopDefauts)
+    {
+        <div class="mb-2">
+            <div class="d-flex justify-content-between"><span>@classe</span><span>@total</span></div>
+            <div class="progress" style="height:8px;">
+                <div class="progress-bar" style="background-color:var(--navy); width:@(total * 100 / maxTop)%"></div>
+            </div>
+        </div>
+    }
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+    const typeLabels = @Html.Raw(JsonSerializer.Serialize(Model.RepartitionType.Keys));
+    const typeValues = @Html.Raw(JsonSerializer.Serialize(Model.RepartitionType.Values));
+    new Chart(document.getElementById('chartType'), {
+        type: 'doughnut',
+        data: { labels: typeLabels, datasets: [{ data: typeValues, backgroundColor: ['#DC3545', '#FF9900', '#0D6EFD'] }] }
+    });
+
+    const posteLabels = @Html.Raw(JsonSerializer.Serialize(Model.RepartitionPoste.Keys));
+    const posteValues = @Html.Raw(JsonSerializer.Serialize(Model.RepartitionPoste.Values));
+    new Chart(document.getElementById('chartPoste'), {
+        type: 'bar',
+        data: { labels: posteLabels, datasets: [{ data: posteValues, backgroundColor: '#3B2E7E' }] },
+        options: { indexAxis: 'y', plugins: { legend: { display: false } } }
+    });
+
+    const evoLabels = @Html.Raw(JsonSerializer.Serialize(Model.Evolution.Keys));
+    const evoValues = @Html.Raw(JsonSerializer.Serialize(Model.Evolution.Values));
+    new Chart(document.getElementById('chartEvolution'), {
+        type: 'line',
+        data: { labels: evoLabels, datasets: [{ data: evoValues, borderColor: '#3B2E7E', backgroundColor: 'rgba(59,46,126,0.1)', fill: true, tension: 0.3 }] },
+        options: { plugins: { legend: { display: false } } }
+    });
+</script>

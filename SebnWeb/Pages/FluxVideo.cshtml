@@ -1,0 +1,200 @@
+@page
+@model SebnWeb.Pages.FluxVideoModel
+@{ ViewData["Title"] = "Flux vidéo"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Surveillance en temps réel</div>
+        <div style="font-size:13px; color:#6b6b70;">Détection automatique des non-conformités par vision par ordinateur</div>
+    </div>
+</div>
+
+@if (!Model.ApiDisponible)
+{
+    <div class="alert alert-warning">
+        ⚠️ Le microservice IA (<code>ia-service</code>) n'est pas accessible actuellement.
+        Si l'application vient de démarrer (plan gratuit), le service met parfois
+        30 à 60 secondes à se réveiller — réessayez dans une minute.
+    </div>
+}
+else
+{
+    <span class="badge badge-warning pulse mb-3">MODE SIMULATION — connecté au microservice IA</span>
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="sebn-kpi text-center">
+            @if (Model.ImageBase64 != null)
+            {
+                <img src="data:image/png;base64,@Model.ImageBase64" class="img-fluid rounded" />
+            }
+            else
+            {
+                <div class="text-muted py-5">Cliquez sur « Capturer une image » pour démarrer.</div>
+            }
+        </div>
+    </div>
+    <div class="col-md-4">
+        <form method="post" asp-page-handler="Capturer">
+            <div class="sebn-kpi mb-3">
+                <label class="form-label">Poste surveillé</label>
+                <select class="form-select mb-3" asp-for="IdPoste">
+                    @foreach (var p in Model.Postes)
+                    {
+                        <option value="@p.IdPoste">@p.IdPoste — @p.LigneProduction</option>
+                    }
+                </select>
+                <button type="submit" class="btn btn-sebn w-100" @(Model.ApiDisponible ? "" : "disabled")>
+                    ▶️ Capturer une image
+                </button>
+            </div>
+        </form>
+
+        @if (Model.Anomalie != null)
+        {
+            <div class="alert alert-danger">
+                <strong>⚠️ @Model.Anomalie.TypeAnomalie détecté</strong><br />
+                Classe : <code>@Model.Anomalie.Classe</code><br />
+                Confiance : @((int)(Model.Anomalie.Confiance * 100))%
+            </div>
+        }
+        else if (Model.ImageBase64 != null)
+        {
+            <div class="alert alert-success">✅ Poste conforme</div>
+        }
+    </div>
+</div>
+
+<hr class="my-4" />
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:20px; font-weight:700; color:var(--navy-dark);">📱 Caméra de cet appareil</div>
+        <div style="font-size:13px; color:#6b6b70;">Fonctionne sur PC (webcam) et téléphone (caméra arrière/avant) — capture réelle envoyée à l'IA</div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="sebn-kpi text-center">
+            <video id="camVideo" autoplay playsinline style="width:100%; border-radius:10px; display:none;"></video>
+            <canvas id="camCanvas" style="display:none;"></canvas>
+            <img id="camResultImg" class="img-fluid rounded" style="display:none;" />
+            <div id="camPlaceholder" class="text-muted py-5">Cliquez sur « Activer la caméra » pour commencer.</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="sebn-kpi mb-3">
+            <button id="btnActiverCam" class="btn btn-sebn w-100 mb-2">🎥 Activer la caméra</button>
+            <button id="btnCapturerCam" class="btn btn-outline-primary w-100" disabled>📸 Capturer et analyser</button>
+        </div>
+        <div id="camAlerte"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const video = document.getElementById('camVideo');
+    const canvas = document.getElementById('camCanvas');
+    const resultImg = document.getElementById('camResultImg');
+    const placeholder = document.getElementById('camPlaceholder');
+    const btnActiver = document.getElementById('btnActiverCam');
+    const btnCapturer = document.getElementById('btnCapturerCam');
+    const alerteZone = document.getElementById('camAlerte');
+    let stream = null;
+    let signalPerduEnvoye = false;
+    let surveillanceIntervalId = null;
+
+    function idPosteActuel() {
+        return document.querySelector('select[name="IdPoste"]')?.value || 'P01';
+    }
+
+    async function signalerPerteFlux() {
+        if (signalPerduEnvoye) return;
+        signalPerduEnvoye = true;
+        try {
+            await fetch('/api/camera-signal-perdu', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idPoste: idPosteActuel() })
+            });
+        } catch (e) { /* silencieux : notification best-effort */ }
+        alerteZone.innerHTML = '<div class="alert alert-warning">📡 Perte du flux caméra détectée — le Superviseur PIT a été notifié.</div>';
+        btnCapturer.disabled = true;
+    }
+
+    function demarrerSurveillanceFlux(track) {
+        signalPerduEnvoye = false;
+        // Cas 1 : le navigateur signale l'arrêt réel du flux (déconnexion, permission révoquée...)
+        track.addEventListener('ended', signalerPerteFlux);
+
+        // Cas 2 : le flux est toujours "actif" côté navigateur mais ne délivre plus
+        // d'image (timeout) — vérifié toutes les 2s, seuil de 10s sans image valide.
+        clearInterval(surveillanceIntervalId);
+        surveillanceIntervalId = setInterval(() => {
+            if (track.readyState !== 'live' || video.readyState < 2) {
+                signalerPerteFlux();
+            }
+        }, 10000);
+    }
+
+    btnActiver.addEventListener('click', async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            resultImg.style.display = 'none';
+            placeholder.style.display = 'none';
+            btnCapturer.disabled = false;
+            demarrerSurveillanceFlux(stream.getVideoTracks()[0]);
+        } catch (err) {
+            alerteZone.innerHTML = '<div class="alert alert-danger">Impossible d\'accéder à la caméra : ' + err.message + '</div>';
+        }
+    });
+
+    btnCapturer.addEventListener('click', async () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+        btnCapturer.disabled = true;
+        btnCapturer.textContent = '⏳ Analyse en cours...';
+
+        try {
+            const idPoste = document.querySelector('select[name="IdPoste"]')?.value || 'P01';
+            const rep = await fetch('/api/detect-photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPoste })
+            });
+            const data = await rep.json();
+
+            if (data.erreur) {
+                alerteZone.innerHTML = '<div class="alert alert-warning">' + data.erreur + '</div>';
+            } else {
+                resultImg.src = 'data:image/jpeg;base64,' + data.imageBase64;
+                resultImg.style.display = 'block';
+                video.style.display = 'none';
+
+                if (data.anomalie) {
+                    alerteZone.innerHTML = '<div class="alert alert-danger"><strong>⚠️ ' +
+                        data.anomalie.type + ' détecté</strong><br>Classe : <code>' +
+                        data.anomalie.classe + '</code><br>Confiance : ' +
+                        Math.round(data.anomalie.confiance * 100) + '%</div>';
+                } else {
+                    alerteZone.innerHTML = '<div class="alert alert-success">✅ Poste conforme</div>';
+                }
+            }
+        } catch (err) {
+            alerteZone.innerHTML = '<div class="alert alert-danger">Erreur réseau : ' + err.message + '</div>';
+        }
+
+        btnCapturer.disabled = false;
+        btnCapturer.textContent = '📸 Capturer et analyser';
+    });
+})();
+</script>
