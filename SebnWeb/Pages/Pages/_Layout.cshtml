@@ -37,6 +37,7 @@ else
             }
             <hr style="border-color: rgba(255,255,255,0.15); margin: 18px 0;" />
             <form method="post" action="/Index?handler=Logout">
+                @Html.AntiForgeryToken()
                 <button type="submit" class="btn btn-sm btn-outline-light w-100">Se déconnecter</button>
             </form>
         </nav>
