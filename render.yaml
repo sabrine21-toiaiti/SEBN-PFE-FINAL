@@ -14,13 +14,7 @@ services:
     rootDir: SebnWeb
     dockerfilePath: ./Dockerfile
     healthCheckPath: /Index
-    plan: starter
-    disk:
-      name: sebn-data
-      mountPath: /var/data
-      sizeGB: 1
+    plan: free
     envVars:
-      - key: SEBN_DATA_DIR
-        value: /var/data
       - key: DetectionApi__BaseUrl
         value: https://sebn-ia-service.onrender.com
