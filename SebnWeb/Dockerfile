@@ -13,6 +13,7 @@ COPY --from=build /app/publish .
 # Valeur par défaut si non fournie (ex: test local du conteneur).
 ENV PORT=8080
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
+ENV DOTNET_hostBuilder__reloadConfigOnChange=false
 EXPOSE 8080
 
 ENTRYPOINT ["dotnet", "SebnWeb.dll"]
