@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SebnWeb.Data;
+using SebnWeb.Models;
 using SebnWeb.Services;
 
 namespace SebnWeb.Pages;
@@ -18,6 +19,7 @@ public class FluxVideoModel : PageModel
 
     public List<SebnWeb.Models.Poste> Postes { get; set; } = new();
     public bool ApiDisponible { get; set; }
+    public string ModeIA { get; set; } = "";
     public string? ImageBase64 { get; set; }
     public AnomalieDetecteeDto? Anomalie { get; set; }
     [BindProperty] public string IdPoste { get; set; } = "";
@@ -26,9 +28,13 @@ public class FluxVideoModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
+        if (!RolesAutorises())
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
-        ApiDisponible = await _api.EstDisponibleAsync();
+        var etatIA = await _api.ObtenirEtatAsync();
+        ApiDisponible = etatIA != null;
+        ModeIA = etatIA?.Mode ?? "";
         return Page();
     }
 
@@ -36,9 +42,13 @@ public class FluxVideoModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
+        if (!RolesAutorises())
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
-        ApiDisponible = await _api.EstDisponibleAsync();
+        var etatIA = await _api.ObtenirEtatAsync();
+        ApiDisponible = etatIA != null;
+        ModeIA = etatIA?.Mode ?? "";
 
         if (ApiDisponible)
         {
@@ -63,5 +73,12 @@ public class FluxVideoModel : PageModel
         }
 
         return Page();
+    }
+
+    private bool RolesAutorises()
+    {
+        var role = HttpContext.Session.GetString("Role");
+        return role == nameof(RoleUtilisateur.SuperviseurPit) ||
+               role == nameof(RoleUtilisateur.OperateurProduction);
     }
 }

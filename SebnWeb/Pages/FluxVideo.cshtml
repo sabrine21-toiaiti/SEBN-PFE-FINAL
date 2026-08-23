@@ -17,7 +17,11 @@
         30 à 60 secondes à se réveiller — réessayez dans une minute.
     </div>
 }
-else
+else if (Model.ModeIA == "reel")
+{
+    <span class="badge badge-success pulse mb-3">MODE RÉEL — Microservice IA connecté</span>
+}
+else if (Model.ModeIA == "simulation")
 {
     <span class="badge badge-warning pulse mb-3">MODE SIMULATION — connecté au microservice IA</span>
 }

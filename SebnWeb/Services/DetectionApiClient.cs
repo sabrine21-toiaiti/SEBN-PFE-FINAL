@@ -9,6 +9,12 @@ public class AnomalieDetecteeDto
     [JsonPropertyName("confiance")] public double Confiance { get; set; }
 }
 
+public class EtatDetectionDto
+{
+    [JsonPropertyName("status")] public string Status { get; set; } = "";
+    [JsonPropertyName("mode")] public string Mode { get; set; } = "";
+}
+
 public class ResultatDetectionDto
 {
     [JsonPropertyName("image_base64")] public string ImageBase64 { get; set; } = "";
@@ -37,6 +43,20 @@ public class DetectionApiClient
         catch
         {
             return false;
+        }
+    }
+
+    public async Task<EtatDetectionDto?> ObtenirEtatAsync()
+    {
+        try
+        {
+            var rep = await _http.GetAsync("/health");
+            if (!rep.IsSuccessStatusCode) return null;
+            return await rep.Content.ReadFromJsonAsync<EtatDetectionDto>();
+        }
+        catch
+        {
+            return null;
         }
     }
 
