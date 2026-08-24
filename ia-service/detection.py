@@ -125,6 +125,8 @@ class ModuleDetectionYOLO:
     def _charger_modele(self):
         if self.model is None:
             from ultralytics import YOLO
+            import cv2
+            self.cv2 = cv2
             self.model = YOLO(self.chemin_modele)
         return self.model
 
