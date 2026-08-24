@@ -28,7 +28,13 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddHttpClient<DetectionApiClient>(client =>
 {
-    var baseUrl = builder.Configuration["DetectionApi:BaseUrl"] ?? "http://localhost:8000";
+    var baseUrl = builder.Configuration["DetectionApi:BaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+    {
+        baseUrl = builder.Environment.IsDevelopment()
+            ? "http://localhost:8000"
+            : "https://sebn-pfe-ia.onrender.com";
+    }
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout = TimeSpan.FromSeconds(90);
 });

@@ -10,11 +10,11 @@ Deux modes :
                 en cohérence avec la stratégie hybride de données du
                 Chapitre 2 du rapport.
 """
-import os
+from pathlib import Path
 import random
 from PIL import Image, ImageDraw, ImageFont
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "best.pt")
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "best.pt"
 
 CLASSES_DEFAUTS = {
     "Qualité": ["connecteur_manquant", "fil_mal_positionne", "defaut_couleur", "sertissage_defectueux"],
@@ -31,7 +31,7 @@ COULEURS = {
 
 
 def modele_reel_disponible() -> bool:
-    return os.path.exists(MODEL_PATH)
+    return MODEL_PATH.is_file()
 
 
 class ModuleDetectionSimulation:
@@ -115,24 +115,39 @@ class ModuleDetectionYOLO:
     """
 
     def __init__(self, chemin_modele=MODEL_PATH, source_camera=0, seuil_confiance=0.5):
-        from ultralytics import YOLO
-        import cv2
-        self.cv2 = cv2
-        self.model = YOLO(chemin_modele)
-        self.camera = cv2.VideoCapture(source_camera)
+        self.chemin_modele = str(chemin_modele)
+        self.source_camera = source_camera
         self.seuil_confiance = seuil_confiance
+        self.cv2 = None
+        self.model = None
+        self.camera = None
+
+    def _charger_modele(self):
+        if self.model is None:
+            from ultralytics import YOLO
+            self.model = YOLO(self.chemin_modele)
+        return self.model
+
+    def _ouvrir_camera(self):
+        if self.camera is None:
+            import cv2
+            self.cv2 = cv2
+            self.camera = cv2.VideoCapture(self.source_camera)
+        return self.camera
 
     def capturer_et_analyser(self):
-        succes, frame = self.camera.read()
+        camera = self._ouvrir_camera()
+        succes, frame = camera.read()
         if not succes:
             return None, None
-        resultats = self.model.predict(frame, conf=self.seuil_confiance, verbose=False)[0]
+        model = self._charger_modele()
+        resultats = model.predict(frame, conf=self.seuil_confiance, verbose=False)[0]
         frame_annote = resultats.plot()
         img = Image.fromarray(self.cv2.cvtColor(frame_annote, self.cv2.COLOR_BGR2RGB))
 
         resultat = None
         for box in resultats.boxes:
-            classe = self.model.names[int(box.cls[0])]
+            classe = model.names[int(box.cls[0])]
             if classe.lower() != "conforme":
                 resultat = {"type_anomalie": "Qualité", "classe": classe,
                             "confiance": round(float(box.conf[0]), 2)}
@@ -143,17 +158,18 @@ class ModuleDetectionYOLO:
         """Analyse réelle (YOLO) d'une photo fournie par la caméra du navigateur.
         Image redimensionnée pour accélérer l'inférence CPU (plan gratuit sans GPU)."""
         import numpy as np
+        model = self._charger_modele()
         img_rgb = img.convert("RGB")
         # Redimensionner si l'image est grande (les téléphones envoient des photos HD)
         img_rgb.thumbnail((640, 640))
         frame = self.cv2.cvtColor(np.array(img_rgb), self.cv2.COLOR_RGB2BGR)
-        resultats = self.model.predict(frame, conf=self.seuil_confiance, imgsz=416, verbose=False)[0]
+        resultats = model.predict(frame, conf=self.seuil_confiance, imgsz=416, verbose=False)[0]
         frame_annote = resultats.plot()
         img_annotee = Image.fromarray(self.cv2.cvtColor(frame_annote, self.cv2.COLOR_BGR2RGB))
 
         resultat = None
         for box in resultats.boxes:
-            classe = self.model.names[int(box.cls[0])]
+            classe = model.names[int(box.cls[0])]
             if classe.lower() != "conforme":
                 resultat = {"type_anomalie": "Qualité", "classe": classe,
                             "confiance": round(float(box.conf[0]), 2)}
@@ -161,7 +177,8 @@ class ModuleDetectionYOLO:
         return img_annotee, resultat
 
     def liberer(self):
-        self.camera.release()
+        if self.camera is not None:
+            self.camera.release()
 
 
 def get_module_detection():

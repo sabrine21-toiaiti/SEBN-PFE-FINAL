@@ -27,10 +27,13 @@ public class ResultatDetectionDto
 public class DetectionApiClient
 {
     private readonly HttpClient _http;
+    private readonly ILogger<DetectionApiClient> _logger;
 
-    public DetectionApiClient(HttpClient http)
+    public DetectionApiClient(HttpClient http, ILogger<DetectionApiClient> logger)
     {
         _http = http;
+        _logger = logger;
+        _logger.LogInformation("IA client configured with base URL {BaseUrl}", _http.BaseAddress);
     }
 
     public async Task<bool> EstDisponibleAsync()
@@ -38,10 +41,12 @@ public class DetectionApiClient
         try
         {
             var rep = await _http.GetAsync("/health");
+            _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode);
             return rep.IsSuccessStatusCode;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "IA health request failed for {Url}", new Uri(_http.BaseAddress!, "/health"));
             return false;
         }
     }
@@ -51,11 +56,14 @@ public class DetectionApiClient
         try
         {
             var rep = await _http.GetAsync("/health");
+            var contenu = await rep.Content.ReadAsStringAsync();
+            _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}: {ResponseBody}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode, contenu);
             if (!rep.IsSuccessStatusCode) return null;
-            return await rep.Content.ReadFromJsonAsync<EtatDetectionDto>();
+            return System.Text.Json.JsonSerializer.Deserialize<EtatDetectionDto>(contenu);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "IA health request or JSON parsing failed for {Url}", new Uri(_http.BaseAddress!, "/health"));
             return null;
         }
     }
@@ -64,10 +72,15 @@ public class DetectionApiClient
     {
         try
         {
-            return await _http.GetFromJsonAsync<ResultatDetectionDto>("/detect");
+            var rep = await _http.GetAsync("/detect");
+            var contenu = await rep.Content.ReadAsStringAsync();
+            _logger.LogInformation("IA detect {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/detect"), (int)rep.StatusCode);
+            if (!rep.IsSuccessStatusCode) return null;
+            return System.Text.Json.JsonSerializer.Deserialize<ResultatDetectionDto>(contenu);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "IA camera detection request failed for {Url}", new Uri(_http.BaseAddress!, "/detect"));
             return null;
         }
     }
@@ -82,11 +95,14 @@ public class DetectionApiClient
             content.Add(imageContent, "file", nomFichier);
 
             var rep = await _http.PostAsync("/detect-image", content);
+            var contenu = await rep.Content.ReadAsStringAsync();
+            _logger.LogInformation("IA image detection {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/detect-image"), (int)rep.StatusCode);
             if (!rep.IsSuccessStatusCode) return null;
-            return await rep.Content.ReadFromJsonAsync<ResultatDetectionDto>();
+            return System.Text.Json.JsonSerializer.Deserialize<ResultatDetectionDto>(contenu);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "IA image detection request failed for {Url}", new Uri(_http.BaseAddress!, "/detect-image"));
             return null;
         }
     }
