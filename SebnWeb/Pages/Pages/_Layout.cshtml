@@ -1,6 +1,7 @@
 @{
     var nomAffichage = Context.Session.GetString("NomAffichage");
-    var role = Context.Session.GetString("Role");
+    var roleCode = Context.Session.GetString("Role");
+    var role = Enum.TryParse<RoleUtilisateur>(roleCode, out var roleEnum) ? roleEnum.Libelle() : roleCode;
     var page = ViewContext.RouteData.Values["page"]?.ToString() ?? "";
 }
 <!DOCTYPE html>
@@ -28,12 +29,26 @@ else
             <div class="user-name">@nomAffichage</div>
             <div class="user-role">@role</div>
 
-            <a href="/Dashboard" class="@(page=="/Dashboard"?"active":"")">📊 <span>Dashboard</span></a>
-            <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Flux vidéo</span></a>
-            <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
-            @if (role == "Administrateur PIT")
+            @if (roleCode == nameof(RoleUtilisateur.SuperviseurQualite))
+            {
+                <a href="/Dashboard" class="@(page=="/Dashboard"?"active":"")">📊 <span>Dashboard Qualité</span></a>
+                <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
+            }
+            @if (roleCode == nameof(RoleUtilisateur.SuperviseurPit))
+            {
+                <a href="/DashboardPit" class="@(page=="/DashboardPit"?"active":"")">📊 <span>Dashboard PIT</span></a>
+                <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Surveillance</span></a>
+                <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
+            }
+            @if (roleCode == nameof(RoleUtilisateur.OperateurProduction))
+            {
+                <a href="/Operateur" class="@(page=="/Operateur"?"active":"")">🧰 <span>Espace opérateur</span></a>
+                <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Détection</span></a>
+            }
+            @if (roleCode == nameof(RoleUtilisateur.Administrateur))
             {
                 <a href="/Administration" class="@(page=="/Administration"?"active":"")">⚙️ <span>Administration</span></a>
+                <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
             }
             <hr style="border-color: rgba(255,255,255,0.15); margin: 18px 0;" />
             <form method="post" action="/Index?handler=Logout">

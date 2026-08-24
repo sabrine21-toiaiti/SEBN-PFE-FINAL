@@ -1,0 +1,47 @@
+@page
+@model SebnWeb.Pages.DashboardPitModel
+@using System.Text.Json
+@{ ViewData["Title"] = "Dashboard PIT"; }
+
+<div class="sebn-header">
+    <div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Dashboard PIT</div>
+        <div style="font-size:13px; color:#6b6b70;">Supervision des postes, caméras et alertes de production</div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="sebn-kpi"><div class="sebn-kpi-value">@Model.Stats.total</div><div class="sebn-kpi-label">Anomalies détectées</div></div></div>
+    <div class="col-md-3"><div class="sebn-kpi"><div class="sebn-kpi-value">@Model.Stats.nonTraitees</div><div class="sebn-kpi-label">À traiter</div></div></div>
+    <div class="col-md-3"><div class="sebn-kpi"><div class="sebn-kpi-value">@Model.Stats.aujourdhui</div><div class="sebn-kpi-label">Aujourd'hui</div></div></div>
+    <div class="col-md-3"><div class="sebn-kpi"><div class="sebn-kpi-value">@Model.Stats.tauxConformite.ToString("0.0")%</div><div class="sebn-kpi-label">Conformité globale</div></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="sebn-kpi">
+            <h5>Répartition par poste</h5>
+            <canvas id="posteChart"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="sebn-kpi">
+            <h5>Évolution des alertes</h5>
+            <canvas id="evolutionChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+    new Chart(document.getElementById('posteChart'), {
+        type: 'bar',
+        data: { labels: @Html.Raw(JsonSerializer.Serialize(Model.RepartitionPoste.Keys)), datasets: [{ label: 'Anomalies', data: @Html.Raw(JsonSerializer.Serialize(Model.RepartitionPoste.Values)), backgroundColor: '#0b7285' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+    new Chart(document.getElementById('evolutionChart'), {
+        type: 'line',
+        data: { labels: @Html.Raw(JsonSerializer.Serialize(Model.Evolution.Keys)), datasets: [{ label: 'Anomalies', data: @Html.Raw(JsonSerializer.Serialize(Model.Evolution.Values)), borderColor: '#e67700', backgroundColor: 'rgba(230,119,0,.15)', fill: true, tension: .3 }] },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+</script>

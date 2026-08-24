@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SebnWeb.Data;
 using SebnWeb.Models;
+using SebnWeb.Services;
 
 namespace SebnWeb.Pages;
 
@@ -22,7 +23,7 @@ public class IndexModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") != null)
         {
-            Response.Redirect("/Dashboard");
+            Response.Redirect(RoleAccess.PageAccueil(HttpContext));
         }
     }
 
@@ -38,10 +39,10 @@ public class IndexModel : PageModel
 
         var utilisateur = resultat.Utilisateur;
         HttpContext.Session.SetString("NomAffichage", utilisateur.NomAffichage);
-        HttpContext.Session.SetString("Role", utilisateur.Role.Libelle());
+        HttpContext.Session.SetString("Role", utilisateur.Role.ToString());
         HttpContext.Session.SetInt32("IdUtilisateur", utilisateur.IdUtilisateur);
 
-        return RedirectToPage("/Dashboard");
+        return Redirect(RoleAccess.PageAccueil(HttpContext));
     }
 
     public IActionResult OnPostLogout()

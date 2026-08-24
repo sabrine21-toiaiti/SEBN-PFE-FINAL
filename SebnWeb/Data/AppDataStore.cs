@@ -287,7 +287,7 @@ public class AppDataStore
                     TypeAnomalie = reader.GetString(2),
                     ClasseYolo = reader.GetString(3),
                     Confiance = reader.GetDouble(4),
-                    ImagePreuve = reader.GetString(5),
+                    ImagePreuve = reader.IsDBNull(5) ? "" : reader.GetString(5),
                     Statut = (StatutAnomalie)reader.GetInt32(6),
                     IdPoste = reader.GetString(7),
                     MatriculeOp = reader.GetString(8)
@@ -361,10 +361,11 @@ public class AppDataStore
             using var connection = CreateConnection();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = @"
-                SELECT COUNT(*), SUM(CASE WHEN Statut = 'NonTraitee' THEN 1 ELSE 0 END), SUM(CASE WHEN DateHeure >= $today THEN 1 ELSE 0 END)
+                SELECT COUNT(*), COALESCE(SUM(CASE WHEN Statut = $nonTraitee THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN DateHeure >= $today THEN 1 ELSE 0 END), 0)
                 FROM Anomalies
             ";
             cmd.Parameters.AddWithValue("$today", DateTime.Today);
+            cmd.Parameters.AddWithValue("$nonTraitee", (int)StatutAnomalie.NonTraitee);
             using var reader = cmd.ExecuteReader();
             reader.Read();
             int total = reader.GetInt32(0);
@@ -384,7 +385,7 @@ public class AppDataStore
             cmd.CommandText = "SELECT TypeAnomalie, COUNT(*) FROM Anomalies GROUP BY TypeAnomalie";
             using var reader = cmd.ExecuteReader();
             var result = new Dictionary<string, int>();
-            while (reader.Read()) result[result.Count.ToString()] = reader.GetInt32(1);
+            while (reader.Read()) result[reader.GetString(0)] = reader.GetInt32(1);
             return result;
         }
     }

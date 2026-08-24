@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SebnWeb.Data;
 using SebnWeb.Models;
+using SebnWeb.Services;
 
 namespace SebnWeb.Pages;
 
@@ -25,6 +26,8 @@ public class HistoriqueModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
+        if (!RolesAutorises())
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         RoleActuel = HttpContext.Session.GetString("Role");
         Postes = _store.ListePostes();
@@ -49,7 +52,20 @@ public class HistoriqueModel : PageModel
 
     public IActionResult OnPostCloturer(int id)
     {
+        if (HttpContext.Session.GetString("NomAffichage") == null)
+            return RedirectToPage("/Index");
+        if (!RolesAutorises())
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
+
         _store.CloturerAnomalie(id);
         return RedirectToPage(new { TypeFiltre, StatutFiltre, PosteFiltre });
+    }
+
+    private bool RolesAutorises()
+    {
+        var role = HttpContext.Session.GetString("Role");
+        return role == nameof(RoleUtilisateur.SuperviseurQualite) ||
+               role == nameof(RoleUtilisateur.SuperviseurPit) ||
+               role == nameof(RoleUtilisateur.Administrateur);
     }
 }

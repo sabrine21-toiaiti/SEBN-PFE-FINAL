@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SebnWeb.Data;
+using SebnWeb.Models;
+using SebnWeb.Services;
 
 namespace SebnWeb.Pages;
 
@@ -17,8 +19,8 @@ public class AdministrationModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
-        if (HttpContext.Session.GetString("Role") != "Administrateur")
-            return RedirectToPage("/Dashboard");
+        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.Administrateur))
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
         Utilisateurs = _store.ListeUtilisateurs();

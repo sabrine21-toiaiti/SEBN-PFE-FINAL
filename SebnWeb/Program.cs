@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.DataProtection;
 using SebnWeb.Data;
+using SebnWeb.Models;
 using SebnWeb.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,10 +16,14 @@ if (!string.IsNullOrEmpty(port))
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton<AppDataStore>();
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "Data", "DataProtectionKeys")))
+    .SetApplicationName("SEBN");
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromHours(4);
     options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
 });
 
 builder.Services.AddHttpClient<DetectionApiClient>(client =>
@@ -59,6 +65,9 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     var body = await ctx.Request.ReadFromJsonAsync<PhotoRequest>();
     if (body == null || string.IsNullOrEmpty(body.ImageBase64))
@@ -103,6 +112,9 @@ app.MapPost("/api/camera-signal-perdu", (HttpContext ctx, AppDataStore store, Si
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     var idPoste = string.IsNullOrEmpty(body.IdPoste) ? "P01" : body.IdPoste;
     store.SignalerPerteFluxCamera(idPoste);
@@ -113,6 +125,8 @@ app.MapGet("/api/notifications", (HttpContext ctx, AppDataStore store) =>
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     var notifications = store.ListeNotificationsNonLues()
         .Select(n => new { n.IdNotification, n.Message, n.IdPoste, DateCreation = n.DateCreation.ToString("dd/MM HH:mm") });
@@ -123,6 +137,8 @@ app.MapPost("/api/notifications/{id:int}/lue", (int id, HttpContext ctx, AppData
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     store.MarquerNotificationLue(id);
     return Results.Ok();
