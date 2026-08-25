@@ -84,8 +84,24 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
     byte[] imageBytes;
     try { imageBytes = Convert.FromBase64String(base64); }
     catch { return Results.BadRequest(new { error = "Image invalide." }); }
+    if (imageBytes.Length == 0 || imageBytes.Length > 10 * 1024 * 1024)
+        return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
 
-    var resultat = await api.DetecterImageAsync(imageBytes);
+    ResultatDetectionDto? resultat;
+    try
+    {
+        resultat = await api.DetecterImageAsync(imageBytes);
+    }
+    catch (DetectionApiException ex)
+    {
+        var statusCode = ex.StatusCode is >= 400 and <= 599 ? ex.StatusCode.Value : StatusCodes.Status503ServiceUnavailable;
+        var message = ex.StatusCode == StatusCodes.Status429TooManyRequests
+            ? "Le service IA limite temporairement les requêtes. Veuillez patienter quelques secondes puis réessayer."
+            : ex.StatusCode.HasValue
+                ? $"Le service IA a refusé la requête (HTTP {ex.StatusCode.Value})."
+                : "Le service IA est temporairement indisponible.";
+        return Results.Json(new { erreur = message, code = ex.StatusCode.HasValue ? $"IA_HTTP_{ex.StatusCode.Value}" : "IA_NETWORK_ERROR" }, statusCode: statusCode);
+    }
     if (resultat == null)
         return Results.Json(new { erreur = "Microservice IA indisponible." }, statusCode: 503);
 

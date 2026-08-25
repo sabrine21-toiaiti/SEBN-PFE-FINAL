@@ -12,8 +12,11 @@ Deux modes :
 """
 from pathlib import Path
 import random
+import threading
+import logging
 from PIL import Image, ImageDraw, ImageFont
 
+logger = logging.getLogger(__name__)
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "best.pt"
 
 CLASSES_DEFAUTS = {
@@ -120,14 +123,19 @@ class ModuleDetectionYOLO:
         self.seuil_confiance = seuil_confiance
         self.cv2 = None
         self.model = None
+        self._model_lock = threading.Lock()
         self.camera = None
 
     def _charger_modele(self):
         if self.model is None:
-            from ultralytics import YOLO
-            import cv2
-            self.cv2 = cv2
-            self.model = YOLO(self.chemin_modele)
+            with self._model_lock:
+                if self.model is None:
+                    from ultralytics import YOLO
+                    import cv2
+                    self.cv2 = cv2
+                    logger.info("[IA] loading model: %s", self.chemin_modele)
+                    self.model = YOLO(self.chemin_modele)
+                    logger.info("[IA] model loaded")
         return self.model
 
     def _ouvrir_camera(self):
@@ -165,6 +173,7 @@ class ModuleDetectionYOLO:
         # Redimensionner si l'image est grande (les téléphones envoient des photos HD)
         img_rgb.thumbnail((640, 640))
         frame = self.cv2.cvtColor(np.array(img_rgb), self.cv2.COLOR_RGB2BGR)
+        logger.info("[IA] inference started")
         resultats = model.predict(frame, conf=self.seuil_confiance, imgsz=416, verbose=False)[0]
         frame_annote = resultats.plot()
         img_annotee = Image.fromarray(self.cv2.cvtColor(frame_annote, self.cv2.COLOR_BGR2RGB))

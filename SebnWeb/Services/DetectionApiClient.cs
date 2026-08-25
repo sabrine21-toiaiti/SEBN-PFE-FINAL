@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Diagnostics;
 
 namespace SebnWeb.Services;
 
@@ -19,6 +20,19 @@ public class ResultatDetectionDto
 {
     [JsonPropertyName("image_base64")] public string ImageBase64 { get; set; } = "";
     [JsonPropertyName("anomalie")] public AnomalieDetecteeDto? Anomalie { get; set; }
+}
+
+public sealed class DetectionApiException : Exception
+{
+    public int? StatusCode { get; }
+    public string ResponseBody { get; }
+
+    public DetectionApiException(string message, int? statusCode = null, string responseBody = "", Exception? innerException = null)
+        : base(message, innerException)
+    {
+        StatusCode = statusCode;
+        ResponseBody = responseBody;
+    }
 }
 
 /// <summary>
@@ -42,17 +56,7 @@ public class DetectionApiClient
 
     public async Task<bool> EstDisponibleAsync()
     {
-        try
-        {
-            var rep = await _http.GetAsync("/health");
-            _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode);
-            return rep.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "IA health request failed for {Url}", new Uri(_http.BaseAddress!, "/health"));
-            return false;
-        }
+        return await ObtenirEtatAsync() != null;
     }
 
     public async Task<EtatDetectionDto?> ObtenirEtatAsync()
@@ -63,7 +67,7 @@ public class DetectionApiClient
             if (_healthCacheInitialized && DateTimeOffset.UtcNow < _healthCacheUntil)
                 return _cachedHealth;
 
-            for (var tentative = 0; tentative < 3; tentative++)
+            for (var tentative = 0; tentative < 2; tentative++)
             {
                 var rep = await _http.GetAsync("/health");
                 var contenu = await rep.Content.ReadAsStringAsync();
@@ -76,11 +80,11 @@ public class DetectionApiClient
                     return _cachedHealth;
                 }
 
-                if ((int)rep.StatusCode != StatusCodes.Status429TooManyRequests || tentative == 2)
+                if ((int)rep.StatusCode != StatusCodes.Status429TooManyRequests || tentative == 1)
                     break;
 
                 var delai = rep.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(tentative + 1);
-                await Task.Delay(TimeSpan.FromSeconds(Math.Min(delai.TotalSeconds, 5)));
+                await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(delai.TotalSeconds, 1, 10)));
             }
 
             CacheHealth(TimeSpan.FromSeconds(10));
@@ -123,6 +127,7 @@ public class DetectionApiClient
 
     public async Task<ResultatDetectionDto?> DetecterImageAsync(byte[] imageBytes, string nomFichier = "photo.jpg")
     {
+        var chronometre = Stopwatch.StartNew();
         try
         {
             using var content = new MultipartFormDataContent();
@@ -132,7 +137,7 @@ public class DetectionApiClient
 
             var rep = await _http.PostAsync("/detect-image", content);
             var contenu = await rep.Content.ReadAsStringAsync();
-            _logger.LogInformation("IA image detection {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/detect-image"), (int)rep.StatusCode);
+            _logger.LogInformation("IA image detection {Url} returned HTTP {StatusCode} in {ElapsedMs} ms", new Uri(_http.BaseAddress!, "/detect-image"), (int)rep.StatusCode, chronometre.ElapsedMilliseconds);
             if (!rep.IsSuccessStatusCode)
             {
                 _logger.LogError(
@@ -140,14 +145,23 @@ public class DetectionApiClient
                     new Uri(_http.BaseAddress!, "/detect-image"),
                     (int)rep.StatusCode,
                     contenu);
-                return null;
+                throw new DetectionApiException(
+                    $"Le microservice IA a retourné HTTP {(int)rep.StatusCode}.",
+                    (int)rep.StatusCode,
+                    contenu);
             }
             return System.Text.Json.JsonSerializer.Deserialize<ResultatDetectionDto>(contenu);
         }
+        catch (DetectionApiException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "IA image detection request failed for {Url}", new Uri(_http.BaseAddress!, "/detect-image"));
-            return null;
+            _logger.LogError(ex, "IA image detection request failed for {Url} after {ElapsedMs} ms", new Uri(_http.BaseAddress!, "/detect-image"), chronometre.ElapsedMilliseconds);
+            throw new DetectionApiException(
+                "La requête vers le microservice IA a échoué.",
+                innerException: ex);
         }
     }
 }

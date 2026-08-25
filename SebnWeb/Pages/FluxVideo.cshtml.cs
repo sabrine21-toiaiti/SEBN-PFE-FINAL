@@ -46,29 +46,23 @@ public class FluxVideoModel : PageModel
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
-        var etatIA = await _api.ObtenirEtatAsync();
-        ApiDisponible = etatIA != null;
-        ModeIA = etatIA?.Mode ?? "";
-
-        if (ApiDisponible)
+        ApiDisponible = true;
+        var resultat = await _api.DetecterAsync();
+        if (resultat != null)
         {
-            var resultat = await _api.DetecterAsync();
-            if (resultat != null)
-            {
-                ImageBase64 = resultat.ImageBase64;
-                Anomalie = resultat.Anomalie;
+            ImageBase64 = resultat.ImageBase64;
+            Anomalie = resultat.Anomalie;
 
-                if (resultat.Anomalie != null)
-                {
-                    _store.InsererAnomalie(
-                        resultat.Anomalie.TypeAnomalie,
-                        resultat.Anomalie.Classe,
-                        resultat.Anomalie.Confiance,
-                        "captures/live.jpg",
-                        string.IsNullOrEmpty(IdPoste) ? "P01" : IdPoste,
-                        "OP101"
-                    );
-                }
+            if (resultat.Anomalie != null)
+            {
+                _store.InsererAnomalie(
+                    resultat.Anomalie.TypeAnomalie,
+                    resultat.Anomalie.Classe,
+                    resultat.Anomalie.Confiance,
+                    "captures/live.jpg",
+                    string.IsNullOrEmpty(IdPoste) ? "P01" : IdPoste,
+                    "OP101"
+                );
             }
         }
 

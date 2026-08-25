@@ -119,6 +119,16 @@ else if (Model.ModeIA == "simulation")
         return document.querySelector('select[name="IdPoste"]')?.value || 'P01';
     }
 
+    function messageErreurCamera(err) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            return 'Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.';
+        }
+        if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            return 'Aucune caméra disponible sur cet appareil.';
+        }
+        return err.message || 'Impossible d’accéder à la caméra.';
+    }
+
     async function signalerPerteFlux() {
         if (signalPerduEnvoye) return;
         signalPerduEnvoye = true;
@@ -187,7 +197,7 @@ else if (Model.ModeIA == "simulation")
                 ? '<div class="alert alert-danger"><strong>⚠️ ' + data.anomalie.type + ' détecté</strong><br>Classe : <code>' + data.anomalie.classe + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
                 : '<div class="alert alert-success">✅ Poste conforme</div>';
         } catch (err) {
-            posteAlerte.innerHTML = '<div class="alert alert-danger">Erreur lors de la capture : ' + err.message + '</div>';
+            posteAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
         }
 
         btnCapturerPoste.disabled = false;
@@ -206,7 +216,7 @@ else if (Model.ModeIA == "simulation")
             btnCapturer.disabled = false;
             demarrerSurveillanceFlux(stream.getVideoTracks()[0]);
         } catch (err) {
-            alerteZone.innerHTML = '<div class="alert alert-danger">Impossible d\'accéder à la caméra : ' + err.message + '</div>';
+            alerteZone.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
         }
     });
 
