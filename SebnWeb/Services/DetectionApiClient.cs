@@ -97,7 +97,15 @@ public class DetectionApiClient
             var rep = await _http.PostAsync("/detect-image", content);
             var contenu = await rep.Content.ReadAsStringAsync();
             _logger.LogInformation("IA image detection {Url} returned HTTP {StatusCode}", new Uri(_http.BaseAddress!, "/detect-image"), (int)rep.StatusCode);
-            if (!rep.IsSuccessStatusCode) return null;
+            if (!rep.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "IA image detection {Url} returned non-success HTTP {StatusCode}. Response body: {ResponseBody}",
+                    new Uri(_http.BaseAddress!, "/detect-image"),
+                    (int)rep.StatusCode,
+                    contenu);
+                return null;
+            }
             return System.Text.Json.JsonSerializer.Deserialize<ResultatDetectionDto>(contenu);
         }
         catch (Exception ex)
