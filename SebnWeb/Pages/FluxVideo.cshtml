@@ -28,7 +28,7 @@ else if (Model.ModeIA == "simulation")
 
 <div class="row">
     <div class="col-md-8">
-        <div class="sebn-kpi text-center">
+        <div id="posteImageZone" class="sebn-kpi text-center">
             @if (Model.ImageBase64 != null)
             {
                 <img src="data:image/png;base64,@Model.ImageBase64" class="img-fluid rounded" />
@@ -49,11 +49,13 @@ else if (Model.ModeIA == "simulation")
                         <option value="@p.IdPoste">@p.IdPoste — @p.LigneProduction</option>
                     }
                 </select>
-                <button type="submit" class="btn btn-sebn w-100" @(Model.ApiDisponible ? "" : "disabled")>
+                <button id="btnCapturerPoste" type="submit" class="btn btn-sebn w-100">
                     ▶️ Capturer une image
                 </button>
             </div>
         </form>
+
+        <div id="posteAlerte"></div>
 
         @if (Model.Anomalie != null)
         {
@@ -105,6 +107,9 @@ else if (Model.ModeIA == "simulation")
     const placeholder = document.getElementById('camPlaceholder');
     const btnActiver = document.getElementById('btnActiverCam');
     const btnCapturer = document.getElementById('btnCapturerCam');
+    const btnCapturerPoste = document.getElementById('btnCapturerPoste');
+    const posteImageZone = document.getElementById('posteImageZone');
+    const posteAlerte = document.getElementById('posteAlerte');
     const alerteZone = document.getElementById('camAlerte');
     let stream = null;
     let signalPerduEnvoye = false;
@@ -142,6 +147,52 @@ else if (Model.ModeIA == "simulation")
             }
         }, 10000);
     }
+
+    btnCapturerPoste.addEventListener('click', async (event) => {
+        event.preventDefault();
+        btnCapturerPoste.disabled = true;
+        btnCapturerPoste.textContent = '⏳ Analyse en cours...';
+
+        try {
+            if (!stream) {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                video.srcObject = stream;
+                await video.play();
+                demarrerSurveillanceFlux(stream.getVideoTracks()[0]);
+            }
+
+            if (!video.videoWidth || !video.videoHeight) {
+                await new Promise(resolve => video.addEventListener('loadedmetadata', resolve, { once: true }));
+            }
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+            const rep = await fetch('/api/detect-photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
+            });
+            const data = await rep.json();
+
+            if (!rep.ok || data.erreur) {
+                throw new Error(data.erreur || 'Analyse impossible.');
+            }
+
+            posteImageZone.innerHTML = '<img src="data:image/jpeg;base64,' + data.imageBase64 + '" class="img-fluid rounded" alt="Image analysée" />';
+            posteAlerte.innerHTML = data.anomalie
+                ? '<div class="alert alert-danger"><strong>⚠️ ' + data.anomalie.type + ' détecté</strong><br>Classe : <code>' + data.anomalie.classe + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
+                : '<div class="alert alert-success">✅ Poste conforme</div>';
+        } catch (err) {
+            posteAlerte.innerHTML = '<div class="alert alert-danger">Erreur lors de la capture : ' + err.message + '</div>';
+        }
+
+        btnCapturerPoste.disabled = false;
+        btnCapturerPoste.textContent = '▶️ Capturer une image';
+    });
 
     btnActiver.addEventListener('click', async () => {
         try {

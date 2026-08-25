@@ -26,6 +26,10 @@ public class ResultatDetectionDto
 /// </summary>
 public class DetectionApiClient
 {
+    private static readonly SemaphoreSlim HealthProbeLock = new(1, 1);
+    private static EtatDetectionDto? _cachedHealth;
+    private static DateTimeOffset _healthCacheUntil;
+    private static bool _healthCacheInitialized;
     private readonly HttpClient _http;
     private readonly ILogger<DetectionApiClient> _logger;
 
@@ -53,19 +57,51 @@ public class DetectionApiClient
 
     public async Task<EtatDetectionDto?> ObtenirEtatAsync()
     {
+        await HealthProbeLock.WaitAsync();
         try
         {
-            var rep = await _http.GetAsync("/health");
-            var contenu = await rep.Content.ReadAsStringAsync();
-            _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}: {ResponseBody}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode, contenu);
-            if (!rep.IsSuccessStatusCode) return null;
-            return System.Text.Json.JsonSerializer.Deserialize<EtatDetectionDto>(contenu);
+            if (_healthCacheInitialized && DateTimeOffset.UtcNow < _healthCacheUntil)
+                return _cachedHealth;
+
+            for (var tentative = 0; tentative < 3; tentative++)
+            {
+                var rep = await _http.GetAsync("/health");
+                var contenu = await rep.Content.ReadAsStringAsync();
+                _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}: {ResponseBody}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode, contenu);
+
+                if (rep.IsSuccessStatusCode)
+                {
+                    _cachedHealth = System.Text.Json.JsonSerializer.Deserialize<EtatDetectionDto>(contenu);
+                    CacheHealth(TimeSpan.FromSeconds(30));
+                    return _cachedHealth;
+                }
+
+                if ((int)rep.StatusCode != StatusCodes.Status429TooManyRequests || tentative == 2)
+                    break;
+
+                var delai = rep.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(tentative + 1);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Min(delai.TotalSeconds, 5)));
+            }
+
+            CacheHealth(TimeSpan.FromSeconds(10));
+            return null;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "IA health request or JSON parsing failed for {Url}", new Uri(_http.BaseAddress!, "/health"));
+            CacheHealth(TimeSpan.FromSeconds(10));
             return null;
         }
+        finally
+        {
+            HealthProbeLock.Release();
+        }
+    }
+
+    private static void CacheHealth(TimeSpan duration)
+    {
+        _healthCacheInitialized = true;
+        _healthCacheUntil = DateTimeOffset.UtcNow.Add(duration);
     }
 
     public async Task<ResultatDetectionDto?> DetecterAsync()
