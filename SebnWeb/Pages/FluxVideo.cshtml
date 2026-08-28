@@ -76,6 +76,35 @@ else if (Model.ModeIA == "simulation")
 
 <div class="sebn-header">
     <div>
+        <div style="font-size:20px; font-weight:700; color:var(--navy-dark);">Mode démonstration — Image industrielle</div>
+        <div style="font-size:13px; color:#6b6b70;">Les échantillons ci-dessous sont issus du dataset industriel du projet. Vous pouvez aussi sélectionner une image depuis ce PC.</div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div id="demoImageZone" class="sebn-kpi text-center">
+            <div class="text-muted py-5">Sélectionnez un échantillon industriel ou une image depuis ce PC.</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="sebn-kpi mb-3">
+            <span class="badge badge-primary mb-2">Mode démonstration — Image industrielle</span>
+            <label class="form-label" for="demoFile">Image industrielle depuis ce PC</label>
+            <input id="demoFile" class="form-control mb-3" type="file" accept="image/jpeg,image/png,image/webp" />
+            <button id="btnAnalyserDemo" type="button" class="btn btn-sebn w-100 mb-3" disabled>🔎 Analyser l’image sélectionnée</button>
+            <div class="small text-muted mb-2">Échantillons industriels existants</div>
+            <button type="button" class="btn btn-outline-primary w-100 mb-2 btn-demo-sample" data-demo-url="/images/demo/defaut-detecte.jpg">Échantillon industriel — défaut détecté</button>
+            <button type="button" class="btn btn-outline-primary w-100 btn-demo-sample" data-demo-url="/images/demo/controle-sans-anomalie.jpg">Échantillon industriel — sans anomalie détectée</button>
+        </div>
+        <div id="demoAlerte"></div>
+    </div>
+</div>
+
+<hr class="my-4" />
+
+<div class="sebn-header">
+    <div>
         <div style="font-size:20px; font-weight:700; color:var(--navy-dark);">📱 Caméra de cet appareil</div>
         <div style="font-size:13px; color:#6b6b70;">Fonctionne sur PC (webcam) et téléphone (caméra arrière/avant) — capture réelle envoyée à l'IA</div>
     </div>
@@ -111,6 +140,11 @@ else if (Model.ModeIA == "simulation")
     const posteImageZone = document.getElementById('posteImageZone');
     const posteAlerte = document.getElementById('posteAlerte');
     const alerteZone = document.getElementById('camAlerte');
+    const demoFile = document.getElementById('demoFile');
+    const btnAnalyserDemo = document.getElementById('btnAnalyserDemo');
+    const demoImageZone = document.getElementById('demoImageZone');
+    const demoAlerte = document.getElementById('demoAlerte');
+    const demoSamples = document.querySelectorAll('.btn-demo-sample');
     let stream = null;
     let signalPerduEnvoye = false;
     let surveillanceIntervalId = null;
@@ -137,6 +171,73 @@ else if (Model.ModeIA == "simulation")
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         return canvas.toDataURL('image/jpeg', 0.8);
     }
+
+    function afficherResultat(zone, alerte, data) {
+        zone.innerHTML = '<img src="data:image/jpeg;base64,' + data.imageBase64 + '" class="img-fluid rounded" alt="Image industrielle analysée" />';
+        alerte.innerHTML = data.anomalie
+            ? '<div class="alert alert-danger"><strong>⚠️ ' + data.anomalie.type + ' détecté</strong><br>Classe : <code>' + data.anomalie.classe + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
+            : '<div class="alert alert-success">✅ Poste conforme</div>';
+    }
+
+    async function analyserDemonstration(imageBase64, bouton) {
+        bouton.disabled = true;
+        const texteInitial = bouton.textContent;
+        bouton.textContent = '⏳ Analyse en cours...';
+        demoAlerte.innerHTML = '';
+        try {
+            const rep = await fetch('/api/detect-photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
+            });
+            const data = await rep.json();
+            if (!rep.ok || data.erreur) {
+                throw new Error(data.erreur || 'Analyse impossible.');
+            }
+            afficherResultat(demoImageZone, demoAlerte, data);
+        } catch (err) {
+            demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+        } finally {
+            bouton.disabled = false;
+            bouton.textContent = texteInitial;
+        }
+    }
+
+    function lireImageCommeBase64(fichier) {
+        return new Promise((resolve, reject) => {
+            const lecteur = new FileReader();
+            lecteur.onload = () => resolve(lecteur.result);
+            lecteur.onerror = () => reject(new Error('Lecture de l’image impossible.'));
+            lecteur.readAsDataURL(fichier);
+        });
+    }
+
+    demoFile.addEventListener('change', () => {
+        btnAnalyserDemo.disabled = !demoFile.files?.length;
+        demoAlerte.innerHTML = '';
+    });
+
+    btnAnalyserDemo.addEventListener('click', async () => {
+        if (!demoFile.files?.length) return;
+        try {
+            await analyserDemonstration(await lireImageCommeBase64(demoFile.files[0]), btnAnalyserDemo);
+        } catch (err) {
+            demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+        }
+    });
+
+    demoSamples.forEach((bouton) => {
+        bouton.addEventListener('click', async () => {
+            try {
+                const rep = await fetch(bouton.dataset.demoUrl);
+                if (!rep.ok) throw new Error('Échantillon industriel indisponible.');
+                const fichier = await rep.blob();
+                await analyserDemonstration(await lireImageCommeBase64(fichier), bouton);
+            } catch (err) {
+                demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+            }
+        });
+    });
 
     async function signalerPerteFlux() {
         if (signalPerduEnvoye) return;
