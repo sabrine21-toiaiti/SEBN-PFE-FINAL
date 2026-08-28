@@ -4,6 +4,7 @@ consommée par le backend .NET.
 
 Lancer : uvicorn main:app --port 8000 --reload
 """
+import asyncio
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,6 +19,8 @@ from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger(__name__)
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+INFERENCE_TIMEOUT_SECONDS = 50
+inference_lock = asyncio.Semaphore(1)
 
 app = FastAPI(title="SEBN - Microservice de Détection IA")
 
@@ -28,8 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Le modèle et la caméra sont initialisés à la première détection, jamais au
-# chargement du module, afin que /health reste disponible immédiatement.
 detecteur = get_module_detection()
 
 
@@ -42,6 +43,16 @@ class AnomalieDetectee(BaseModel):
 class ResultatDetection(BaseModel):
     image_base64: str
     anomalie: Optional[AnomalieDetectee] = None
+
+
+@app.on_event("startup")
+async def precharger_modele():
+    """Charge le modèle avant la première requête de démonstration."""
+    try:
+        await asyncio.to_thread(detecteur.precharger_modele)
+        logger.info("[IA] detection module ready before accepting requests")
+    except Exception:
+        logger.exception("[IA] detection module could not be preloaded")
 
 
 @app.get("/health")
@@ -85,7 +96,24 @@ async def detect_image(file: UploadFile = File(...)):
         img = Image.open(io.BytesIO(contenu))
         logger.info("[IA] image decoded: format=%s size=%s", img.format, img.size)
 
-        img_annotee, resultat = detecteur.analyser_image_fournie(img)
+        async def executer_inference():
+            async with inference_lock:
+                return await asyncio.to_thread(detecteur.analyser_image_fournie, img)
+
+        try:
+            img_annotee, resultat = await asyncio.wait_for(
+                executer_inference(), timeout=INFERENCE_TIMEOUT_SECONDS
+            )
+        except asyncio.TimeoutError:
+            logger.error("[IA] inference timeout after %s seconds", INFERENCE_TIMEOUT_SECONDS)
+            return JSONResponse(
+                status_code=504,
+                content={
+                    "success": False,
+                    "error": "L'analyse IA a dépassé le délai autorisé.",
+                    "code": "INFERENCE_TIMEOUT",
+                },
+            )
         logger.info("[IA] inference completed")
 
         buffer = io.BytesIO()

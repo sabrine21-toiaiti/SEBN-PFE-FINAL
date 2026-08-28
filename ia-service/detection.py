@@ -68,6 +68,9 @@ class ModuleDetectionSimulation:
         self._dessiner_poste(draw)
         return self._analyser_et_annoter(img, draw)
 
+    def precharger_modele(self):
+        return None
+
     def analyser_image_fournie(self, img: Image.Image):
         """Analyse une photo réelle fournie (caméra du navigateur, PC ou téléphone).
         Simule une détection réaliste superposée sur la vraie photo."""
@@ -138,6 +141,9 @@ class ModuleDetectionYOLO:
                     logger.info("[IA] model loaded")
         return self.model
 
+    def precharger_modele(self):
+        self._charger_modele()
+
     def _ouvrir_camera(self):
         if self.camera is None:
             import cv2
@@ -171,7 +177,7 @@ class ModuleDetectionYOLO:
         model = self._charger_modele()
         img_rgb = img.convert("RGB")
         # Redimensionner si l'image est grande (les téléphones envoient des photos HD)
-        img_rgb.thumbnail((640, 640))
+        img_rgb.thumbnail((512, 512))
         frame = self.cv2.cvtColor(np.array(img_rgb), self.cv2.COLOR_RGB2BGR)
         logger.info("[IA] inference started")
         resultats = model.predict(frame, conf=self.seuil_confiance, imgsz=416, verbose=False)[0]
