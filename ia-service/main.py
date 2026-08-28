@@ -17,7 +17,7 @@ import logging
 import time
 from PIL import Image, UnidentifiedImageError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 INFERENCE_TIMEOUT_SECONDS = 50
 inference_lock = asyncio.Semaphore(1)
@@ -83,19 +83,23 @@ def detect():
 async def detect_image(file: UploadFile = File(...)):
     """Analyse une photo envoyée par le navigateur (caméra PC ou téléphone)."""
     started = time.perf_counter()
-    logger.info("[IA] request received: /detect-image filename=%s content_type=%s", file.filename, file.content_type)
+    logger.info("[IA] Request received: /detect-image filename=%s content_type=%s", file.filename, file.content_type)
     try:
         contenu = await file.read()
-        logger.info("[IA] image received: %d bytes", len(contenu))
+        logger.info("[IA] Image size: %.1f KB", len(contenu) / 1024)
         if not contenu or len(contenu) > MAX_IMAGE_BYTES:
             return JSONResponse(
                 status_code=413,
                 content={"success": False, "error": "L'image est vide ou dépasse 10 Mo.", "code": "IMAGE_TOO_LARGE"},
             )
 
+        preprocessing_started = time.perf_counter()
         img = Image.open(io.BytesIO(contenu))
-        logger.info("[IA] image decoded: format=%s size=%s", img.format, img.size)
+        img.load()
+        logger.info("[IA] Image dimensions: %s x %s", img.width, img.height)
+        logger.info("[IA] Preprocessing: %.3f s", time.perf_counter() - preprocessing_started)
 
+        inference_started = time.perf_counter()
         async def executer_inference():
             async with inference_lock:
                 return await asyncio.to_thread(detecteur.analyser_image_fournie, img)
@@ -114,12 +118,17 @@ async def detect_image(file: UploadFile = File(...)):
                     "code": "INFERENCE_TIMEOUT",
                 },
             )
+        logger.info("[IA] YOLO inference: %.3f s", time.perf_counter() - inference_started)
         logger.info("[IA] inference completed")
 
+        postprocessing_started = time.perf_counter()
         buffer = io.BytesIO()
         img_annotee.save(buffer, format="JPEG", quality=85)
+        logger.info("[IA] Postprocessing: %.3f s", time.perf_counter() - postprocessing_started)
+        encoding_started = time.perf_counter()
         image_b64 = base64.b64encode(buffer.getvalue()).decode()
-        logger.info("[IA] result encoded: %d bytes in %.3f s", len(buffer.getvalue()), time.perf_counter() - started)
+        logger.info("[IA] Base64 encoding: %.3f s", time.perf_counter() - encoding_started)
+        logger.info("[IA] Total: %.3f s", time.perf_counter() - started)
 
         anomalie = None
         if resultat:

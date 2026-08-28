@@ -16,7 +16,7 @@ import threading
 import logging
 from PIL import Image, ImageDraw, ImageFont
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "best.pt"
 
 CLASSES_DEFAUTS = {
@@ -142,7 +142,24 @@ class ModuleDetectionYOLO:
         return self.model
 
     def precharger_modele(self):
-        self._charger_modele()
+        model = self._charger_modele()
+        import numpy as np
+        import torch
+        torch.set_num_threads(min(2, torch.get_num_threads()))
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+        logger.info("[IA] warming up YOLO inference")
+        model.predict(
+            np.zeros((320, 320, 3), dtype=np.uint8),
+            conf=self.seuil_confiance,
+            imgsz=320,
+            batch=1,
+            device="cpu",
+            verbose=False,
+        )
+        logger.info("[IA] YOLO inference warm-up complete")
 
     def _ouvrir_camera(self):
         if self.camera is None:
@@ -177,10 +194,17 @@ class ModuleDetectionYOLO:
         model = self._charger_modele()
         img_rgb = img.convert("RGB")
         # Redimensionner si l'image est grande (les téléphones envoient des photos HD)
-        img_rgb.thumbnail((512, 512))
+        img_rgb.thumbnail((384, 384))
         frame = self.cv2.cvtColor(np.array(img_rgb), self.cv2.COLOR_RGB2BGR)
         logger.info("[IA] inference started")
-        resultats = model.predict(frame, conf=self.seuil_confiance, imgsz=416, verbose=False)[0]
+        resultats = model.predict(
+            frame,
+            conf=self.seuil_confiance,
+            imgsz=320,
+            batch=1,
+            device="cpu",
+            verbose=False,
+        )[0]
         frame_annote = resultats.plot()
         img_annotee = Image.fromarray(self.cv2.cvtColor(frame_annote, self.cv2.COLOR_BGR2RGB))
 

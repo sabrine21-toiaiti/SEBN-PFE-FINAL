@@ -130,6 +130,7 @@ public class DetectionApiClient
         var chronometre = Stopwatch.StartNew();
         try
         {
+            _logger.LogInformation("[Detection] Sending image to IA: {ImageSizeKb} KB", Math.Round(imageBytes.Length / 1024d, 1));
             using var content = new MultipartFormDataContent();
             using var imageContent = new ByteArrayContent(imageBytes);
             imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
@@ -137,7 +138,7 @@ public class DetectionApiClient
 
             var rep = await _http.PostAsync("/detect-image", content);
             var contenu = await rep.Content.ReadAsStringAsync();
-            _logger.LogInformation("IA image detection {Url} returned HTTP {StatusCode} in {ElapsedMs} ms", new Uri(_http.BaseAddress!, "/detect-image"), (int)rep.StatusCode, chronometre.ElapsedMilliseconds);
+            _logger.LogInformation("[Detection] IA response status: {StatusCode}; response time: {ElapsedSeconds:F3} s", (int)rep.StatusCode, chronometre.Elapsed.TotalSeconds);
             if (!rep.IsSuccessStatusCode)
             {
                 _logger.LogError(

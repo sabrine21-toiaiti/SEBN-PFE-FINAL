@@ -36,7 +36,7 @@ builder.Services.AddHttpClient<DetectionApiClient>(client =>
             : "https://sebn-pfe-ia.onrender.com";
     }
     client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(180);
+    client.Timeout = TimeSpan.FromSeconds(60);
 });
 
 var app = builder.Build();

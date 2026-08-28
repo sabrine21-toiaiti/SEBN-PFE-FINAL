@@ -129,6 +129,15 @@ else if (Model.ModeIA == "simulation")
         return err.message || 'Impossible d’accéder à la caméra.';
     }
 
+    function preparerCapture() {
+        const largeurMax = 640;
+        const facteur = Math.min(1, largeurMax / video.videoWidth);
+        canvas.width = Math.round(video.videoWidth * facteur);
+        canvas.height = Math.round(video.videoHeight * facteur);
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', 0.8);
+    }
+
     async function signalerPerteFlux() {
         if (signalPerduEnvoye) return;
         signalPerduEnvoye = true;
@@ -177,10 +186,7 @@ else if (Model.ModeIA == "simulation")
                 await new Promise(resolve => video.addEventListener('loadedmetadata', resolve, { once: true }));
             }
 
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+            const imageBase64 = preparerCapture();
             const rep = await fetch('/api/detect-photo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -221,10 +227,11 @@ else if (Model.ModeIA == "simulation")
     });
 
     btnCapturer.addEventListener('click', async () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        if (!video.videoWidth || !video.videoHeight) {
+            alerteZone.innerHTML = '<div class="alert alert-warning">La caméra n’est pas encore prête. Réessayez dans un instant.</div>';
+            return;
+        }
+        const imageBase64 = preparerCapture();
 
         btnCapturer.disabled = true;
         btnCapturer.textContent = '⏳ Analyse en cours...';
