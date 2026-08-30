@@ -38,6 +38,40 @@
 
 <p class="text-muted">@Model.Historique.Count résultat(s)</p>
 
+@if (Model.AnomalieSelectionnee != null)
+{
+    <div class="sebn-kpi mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Détail de l’anomalie #@Model.AnomalieSelectionnee.IdAnomalie</h5>
+            <a class="btn btn-sm btn-outline-secondary" href="@Model.LienHistorique(Model.Page)">Fermer</a>
+        </div>
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Date/heure</dt><dd class="col-sm-8">@Model.AnomalieSelectionnee.DateHeure.ToString("dd/MM/yyyy HH:mm")</dd>
+            <dt class="col-sm-4">Type d’anomalie</dt><dd class="col-sm-8">@Model.AnomalieSelectionnee.TypeAnomalie</dd>
+            <dt class="col-sm-4">Classe YOLO</dt><dd class="col-sm-8"><code>@Model.AnomalieSelectionnee.ClasseYolo</code></dd>
+            <dt class="col-sm-4">Confiance</dt><dd class="col-sm-8">@((int)(Model.AnomalieSelectionnee.Confiance * 100))%</dd>
+            <dt class="col-sm-4">Poste</dt><dd class="col-sm-8">@Model.AnomalieSelectionnee.IdPoste</dd>
+            <dt class="col-sm-4">Matricule opérateur</dt><dd class="col-sm-8">@Model.AnomalieSelectionnee.MatriculeOp</dd>
+            <dt class="col-sm-4">Statut</dt><dd class="col-sm-8">@Model.AnomalieSelectionnee.Statut.Libelle()</dd>
+            @if (Model.ImagePreuveDisponible)
+            {
+                <dt class="col-sm-4">Image de preuve</dt>
+                <dd class="col-sm-8"><img src="@Model.ImagePreuveUrl" class="img-fluid rounded" alt="Image de preuve" /></dd>
+            }
+        </dl>
+        @if (Model.AnomalieSelectionnee.Statut == StatutAnomalie.NonTraitee && Model.PeutCloturer)
+        {
+            <form method="post" asp-page-handler="Cloturer" asp-route-id="@Model.AnomalieSelectionnee.IdAnomalie" class="mt-3">
+                <input type="hidden" name="TypeFiltre" value="@Model.TypeFiltre" />
+                <input type="hidden" name="StatutFiltre" value="@Model.StatutFiltre" />
+                <input type="hidden" name="PosteFiltre" value="@Model.PosteFiltre" />
+                <input type="hidden" name="pageNumber" value="@Model.Page" />
+                <button class="btn btn-outline-success">Clôturer cette anomalie</button>
+            </form>
+        }
+    </div>
+}
+
 <div class="sebn-kpi">
     <div class="table-responsive" style="max-height:480px;">
         <table class="table table-sm table-hover">
@@ -66,10 +100,14 @@
                         }
                     </td>
                     <td>
-                        @if (a.Statut == SebnWeb.Models.StatutAnomalie.NonTraitee &&
-                             (Model.RoleActuel == "Superviseur Qualité" || Model.RoleActuel == "Administrateur"))
+                        <a class="btn btn-sm btn-outline-primary" href="@Model.LienHistorique(Model.Page, a.IdAnomalie)">Détail</a>
+                        @if (a.Statut == SebnWeb.Models.StatutAnomalie.NonTraitee && Model.PeutCloturer)
                         {
                             <form method="post" asp-page-handler="Cloturer" asp-route-id="@a.IdAnomalie">
+                                <input type="hidden" name="TypeFiltre" value="@Model.TypeFiltre" />
+                                <input type="hidden" name="StatutFiltre" value="@Model.StatutFiltre" />
+                                <input type="hidden" name="PosteFiltre" value="@Model.PosteFiltre" />
+                                <input type="hidden" name="pageNumber" value="@Model.Page" />
                                 <button class="btn btn-sm btn-outline-success">Clôturer</button>
                             </form>
                         }
@@ -80,3 +118,26 @@
         </table>
     </div>
 </div>
+
+<nav aria-label="Pagination de l’historique" class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item @(Model.Page == 1 ? "disabled" : "")">
+            <a class="page-link" href="@Model.LienHistorique(1)">Première</a>
+        </li>
+        <li class="page-item @(Model.Page == 1 ? "disabled" : "")">
+            <a class="page-link" href="@Model.LienHistorique(Model.Page - 1)">Précédente</a>
+        </li>
+        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+        {
+            <li class="page-item @(pageNumber == Model.Page ? "active" : "")">
+                <a class="page-link" href="@Model.LienHistorique(pageNumber)">@pageNumber</a>
+            </li>
+        }
+        <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : "")">
+            <a class="page-link" href="@Model.LienHistorique(Model.Page + 1)">Suivante</a>
+        </li>
+        <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : "")">
+            <a class="page-link" href="@Model.LienHistorique(Model.TotalPages)">Dernière</a>
+        </li>
+    </ul>
+</nav>

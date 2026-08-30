@@ -256,8 +256,29 @@ public class AppDataStore
         }
     }
 
+    public int CompterHistorique(string? type = null, StatutAnomalie? statut = null,
+        string? idPoste = null)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(*)
+                FROM Anomalies
+                WHERE ($type IS NULL OR TypeAnomalie = $type)
+                  AND ($statut IS NULL OR Statut = $statut)
+                  AND ($poste IS NULL OR IdPoste = $poste)
+            ";
+            cmd.Parameters.AddWithValue("$type", (object?)type ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$statut", statut.HasValue ? (object)(int)statut.Value : DBNull.Value);
+            cmd.Parameters.AddWithValue("$poste", (object?)idPoste ?? DBNull.Value);
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+
     public List<Anomalie> RecupererHistorique(string? type = null, StatutAnomalie? statut = null,
-        string? idPoste = null, int limite = 300)
+        string? idPoste = null, int pageSize = 50, int offset = 0)
     {
         lock (_verrou)
         {
@@ -270,12 +291,13 @@ public class AppDataStore
                   AND ($statut IS NULL OR Statut = $statut)
                   AND ($poste IS NULL OR IdPoste = $poste)
                 ORDER BY DateHeure DESC
-                LIMIT $limite
+                LIMIT $pageSize OFFSET $offset
             ";
             cmd.Parameters.AddWithValue("$type", (object?)type ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$statut", statut.HasValue ? (object)(int)statut.Value : DBNull.Value);
             cmd.Parameters.AddWithValue("$poste", (object?)idPoste ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("$limite", limite);
+            cmd.Parameters.AddWithValue("$pageSize", pageSize);
+            cmd.Parameters.AddWithValue("$offset", offset);
             using var reader = cmd.ExecuteReader();
             var result = new List<Anomalie>();
             while (reader.Read())
