@@ -107,14 +107,22 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
 
     if (resultat.Anomalie != null)
     {
-        store.InsererAnomalie(
-            resultat.Anomalie.TypeAnomalie,
-            resultat.Anomalie.Classe,
-            resultat.Anomalie.Confiance,
-            "captures/camera-navigateur.jpg",
-            string.IsNullOrEmpty(body.IdPoste) ? "P01" : body.IdPoste,
-            "OP101"
-        );
+        var seuil = store.ObtenirSeuilConfianceMinimale();
+        if (resultat.Anomalie.Confiance >= seuil)
+        {
+            var imagePreuve = store.EnregistrerImagePreuveDepuisBase64(resultat.ImageBase64, "captures");
+            if (string.IsNullOrWhiteSpace(imagePreuve))
+                imagePreuve = store.EnregistrerImagePreuveDepuisBase64(body.ImageBase64, "captures");
+
+            store.InsererAnomalie(
+                resultat.Anomalie.TypeAnomalie,
+                resultat.Anomalie.Classe,
+                resultat.Anomalie.Confiance,
+                imagePreuve ?? "captures/camera-navigateur.jpg",
+                string.IsNullOrEmpty(body.IdPoste) ? "P01" : body.IdPoste,
+                "OP101"
+            );
+        }
     }
 
     return Results.Json(new

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using SebnWeb.Models;
 
@@ -203,6 +205,92 @@ public class AppDataStore
             var role = Enum.Parse<RoleUtilisateur>(roleStr);
             var utilisateur = UtilisateurFactory.Creer(role, id, login, mdpHash, nom);
             return LoginResult.Succes(utilisateur);
+        }
+    }
+
+    public void EnregistrerParametre(string cle, string valeur)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO ParametresSysteme (Cle, Valeur)
+                VALUES ($cle, $valeur)
+                ON CONFLICT(Cle) DO UPDATE SET Valeur = excluded.Valeur
+            ";
+            cmd.Parameters.AddWithValue("$cle", cle);
+            cmd.Parameters.AddWithValue("$valeur", valeur);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public string ObtenirParametre(string cle, string valeurParDefaut)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT Valeur FROM ParametresSysteme WHERE Cle = $cle";
+            cmd.Parameters.AddWithValue("$cle", cle);
+            var valeur = cmd.ExecuteScalar();
+            return valeur?.ToString() ?? valeurParDefaut;
+        }
+    }
+
+    public double ObtenirSeuilConfianceMinimale()
+    {
+        var valeur = ObtenirParametre("SeuilConfianceMinimale", "0.50");
+        return double.TryParse(valeur, CultureInfo.InvariantCulture, out var seuil)
+            ? Math.Clamp(seuil, 0.05, 0.99)
+            : 0.50d;
+    }
+
+    public int ObtenirTimeoutPerteCameraSecondes()
+    {
+        var valeur = ObtenirParametre("TimeoutPerteCameraSecondes", "5");
+        return int.TryParse(valeur, out var timeout)
+            ? Math.Clamp(timeout, 1, 120)
+            : 5;
+    }
+
+    public string? EnregistrerImagePreuve(byte[] imageBytes, string sousDossier = "captures")
+    {
+        if (imageBytes == null || imageBytes.Length == 0)
+            return null;
+
+        var repWebRoot = Path.Combine(_contentRootPath, "wwwroot");
+        var dossier = Path.Combine(repWebRoot, sousDossier.TrimStart('/', '\\'));
+        Directory.CreateDirectory(dossier);
+
+        var nomFichier = $"{DateTime.UtcNow:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}.jpg";
+        var cheminComplet = Path.Combine(dossier, nomFichier);
+        File.WriteAllBytes(cheminComplet, imageBytes);
+
+        return Path.Combine(sousDossier.TrimStart('/', '\\'), nomFichier).Replace('\\', '/');
+    }
+
+    public string? EnregistrerImagePreuveDepuisBase64(string? imageBase64, string sousDossier = "captures")
+    {
+        if (string.IsNullOrWhiteSpace(imageBase64))
+            return null;
+
+        var base64 = imageBase64.Trim();
+        if (base64.Contains(',') && base64.IndexOf(',') >= 0)
+            base64 = base64.Split(',', 2)[1];
+
+        base64 = Regex.Replace(base64, @"\s+", "");
+        while (base64.Length % 4 != 0)
+            base64 += "=";
+
+        try
+        {
+            var bytes = Convert.FromBase64String(base64);
+            return EnregistrerImagePreuve(bytes, sousDossier);
+        }
+        catch
+        {
+            return null;
         }
     }
 

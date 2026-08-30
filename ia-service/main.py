@@ -47,12 +47,17 @@ class ResultatDetection(BaseModel):
 
 @app.on_event("startup")
 async def precharger_modele():
-    """Charge le modèle avant la première requête de démonstration."""
-    try:
-        await asyncio.to_thread(detecteur.precharger_modele)
-        logger.info("[IA] detection module ready before accepting requests")
-    except Exception:
-        logger.exception("[IA] detection module could not be preloaded")
+    """Évite un blocage de démarrage sur le premier chargement du modèle YOLO.
+    Le préchauffage continue en arrière-plan, sans empêcher le service de répondre.
+    """
+    async def _background_warmup():
+        try:
+            await asyncio.to_thread(detecteur.precharger_modele)
+            logger.info("[IA] detection module ready before accepting requests")
+        except Exception:
+            logger.exception("[IA] detection module could not be preloaded")
+
+    asyncio.create_task(_background_warmup())
 
 
 @app.get("/health")

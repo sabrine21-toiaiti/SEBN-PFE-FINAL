@@ -48,3 +48,8 @@ CREATE TABLE IF NOT EXISTS Anomalies (
     FOREIGN KEY (IdPoste) REFERENCES Postes(IdPoste),
     FOREIGN KEY (MatriculeOp) REFERENCES Operateurs(MatriculeOp)
 );
+
+CREATE TABLE IF NOT EXISTS ParametresSysteme (
+    Cle TEXT PRIMARY KEY,
+    Valeur TEXT NOT NULL
+);

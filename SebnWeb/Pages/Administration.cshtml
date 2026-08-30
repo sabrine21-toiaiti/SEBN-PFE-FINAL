@@ -9,6 +9,11 @@
     </div>
 </div>
 
+@if (TempData["MessageAdmin"] is string message)
+{
+    <div class="alert alert-success">@message</div>
+}
+
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#postes">🖥️ Postes & Caméras</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#comptes">👥 Comptes utilisateurs</a></li>
@@ -43,12 +48,17 @@
         </div>
     </div>
     <div class="tab-pane fade" id="params">
-        <div class="sebn-kpi">
-            <label class="form-label">Seuil de confiance minimal</label>
-            <input type="range" class="form-range" min="0" max="1" step="0.05" value="0.5" />
-            <label class="form-label mt-3">Timeout perte caméra (secondes)</label>
-            <input type="number" class="form-control" style="max-width:150px;" value="5" />
-            <button class="btn btn-sebn mt-3">Enregistrer</button>
-        </div>
+        <form method="post" asp-page-handler="Enregistrer">
+            <div class="sebn-kpi">
+                <label class="form-label" for="SeuilConfiance">Seuil de confiance minimal</label>
+                <input id="SeuilConfiance" asp-for="SeuilConfiance" type="range" class="form-range" min="0.05" max="0.99" step="0.05" />
+                <div class="small text-muted">Valeur actuelle : @Model.SeuilConfiance.ToString("0.##")</div>
+
+                <label class="form-label mt-3" for="TimeoutPerteCamera">Timeout perte caméra (secondes)</label>
+                <input id="TimeoutPerteCamera" asp-for="TimeoutPerteCamera" type="number" class="form-control" style="max-width:150px;" min="1" max="120" />
+
+                <button type="submit" class="btn btn-sebn mt-3">Enregistrer</button>
+            </div>
+        </form>
     </div>
 </div>

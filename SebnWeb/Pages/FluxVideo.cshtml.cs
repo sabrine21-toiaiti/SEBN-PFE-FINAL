@@ -55,14 +55,22 @@ public class FluxVideoModel : PageModel
 
             if (resultat.Anomalie != null)
             {
-                _store.InsererAnomalie(
-                    resultat.Anomalie.TypeAnomalie,
-                    resultat.Anomalie.Classe,
-                    resultat.Anomalie.Confiance,
-                    "captures/live.jpg",
-                    string.IsNullOrEmpty(IdPoste) ? "P01" : IdPoste,
-                    "OP101"
-                );
+                var seuil = _store.ObtenirSeuilConfianceMinimale();
+                if (resultat.Anomalie.Confiance >= seuil)
+                {
+                    var imagePreuve = _store.EnregistrerImagePreuveDepuisBase64(resultat.ImageBase64, "captures");
+                    if (string.IsNullOrWhiteSpace(imagePreuve))
+                        imagePreuve = _store.EnregistrerImagePreuveDepuisBase64(ImageBase64, "captures");
+
+                    _store.InsererAnomalie(
+                        resultat.Anomalie.TypeAnomalie,
+                        resultat.Anomalie.Classe,
+                        resultat.Anomalie.Confiance,
+                        imagePreuve ?? "captures/live.jpg",
+                        string.IsNullOrEmpty(IdPoste) ? "P01" : IdPoste,
+                        "OP101"
+                    );
+                }
             }
         }
 
