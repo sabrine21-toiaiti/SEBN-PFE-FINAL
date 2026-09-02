@@ -20,6 +20,9 @@ public class ResultatDetectionDto
 {
     [JsonPropertyName("image_base64")] public string ImageBase64 { get; set; } = "";
     [JsonPropertyName("anomalie")] public AnomalieDetecteeDto? Anomalie { get; set; }
+    [JsonPropertyName("status")] public string? Status { get; set; }
+    [JsonPropertyName("domain_valid")] public bool? DomainValid { get; set; }
+    [JsonPropertyName("message")] public string? Message { get; set; }
 }
 
 public sealed class DetectionApiException : Exception
@@ -69,7 +72,8 @@ public class DetectionApiClient
 
             for (var tentative = 0; tentative < 2; tentative++)
             {
-                var rep = await _http.GetAsync("/health");
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                var rep = await _http.GetAsync("/health", timeout.Token);
                 var contenu = await rep.Content.ReadAsStringAsync();
                 _logger.LogInformation("IA health {Url} returned HTTP {StatusCode}: {ResponseBody}", new Uri(_http.BaseAddress!, "/health"), (int)rep.StatusCode, contenu);
 

@@ -22,6 +22,9 @@ public class FluxVideoModel : PageModel
     public string ModeIA { get; set; } = "";
     public string? ImageBase64 { get; set; }
     public AnomalieDetecteeDto? Anomalie { get; set; }
+    public string? Statut { get; set; }
+    public string? Message { get; set; }
+    public int TimeoutPerteCameraSecondes { get; set; } = 5;
     [BindProperty] public string IdPoste { get; set; } = "";
 
     public async Task<IActionResult> OnGet()
@@ -32,6 +35,7 @@ public class FluxVideoModel : PageModel
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
+        TimeoutPerteCameraSecondes = _store.ObtenirTimeoutPerteCameraSecondes();
         var etatIA = await _api.ObtenirEtatAsync();
         ApiDisponible = etatIA != null;
         ModeIA = etatIA?.Mode ?? "";
@@ -46,14 +50,37 @@ public class FluxVideoModel : PageModel
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
-        ApiDisponible = true;
+        TimeoutPerteCameraSecondes = _store.ObtenirTimeoutPerteCameraSecondes();
+        ApiDisponible = await _api.EstDisponibleAsync();
+        if (!ApiDisponible)
+        {
+            Statut = "indisponible";
+            Message = "Le service IA est temporairement indisponible.";
+            return Page();
+        }
+
+        var idPoste = string.IsNullOrWhiteSpace(IdPoste) ? "P01" : IdPoste.Trim();
+        if (!_store.PosteExiste(idPoste))
+        {
+            Statut = "erreur";
+            Message = "Poste sélectionné invalide.";
+            return Page();
+        }
+
         var resultat = await _api.DetecterAsync();
         if (resultat != null)
         {
             ImageBase64 = resultat.ImageBase64;
             Anomalie = resultat.Anomalie;
+            Statut = resultat.Status ?? (resultat.Anomalie == null ? "conforme" : "anomalie");
+            Message = resultat.Message;
 
-            if (resultat.Anomalie != null)
+            if (resultat.Status == "hors_domaine")
+            {
+                Anomalie = null;
+                Statut = "hors_domaine";
+            }
+            else if (resultat.Anomalie != null)
             {
                 var seuil = _store.ObtenirSeuilConfianceMinimale();
                 if (resultat.Anomalie.Confiance >= seuil)
@@ -67,11 +94,17 @@ public class FluxVideoModel : PageModel
                         resultat.Anomalie.Classe,
                         resultat.Anomalie.Confiance,
                         imagePreuve ?? "captures/live.jpg",
-                        string.IsNullOrEmpty(IdPoste) ? "P01" : IdPoste,
+                        idPoste,
                         "OP101"
                     );
                 }
             }
+        }
+        else
+        {
+            ApiDisponible = false;
+            Statut = "indisponible";
+            Message = "La caméra industrielle est indisponible ou n'a fourni aucune image.";
         }
 
         return Page();
@@ -80,7 +113,9 @@ public class FluxVideoModel : PageModel
     private bool RolesAutorises()
     {
         var role = HttpContext.Session.GetString("Role");
-        return role == nameof(RoleUtilisateur.SuperviseurPit) ||
-               role == nameof(RoleUtilisateur.OperateurProduction);
+        return role == nameof(RoleUtilisateur.SuperviseurQualite) ||
+               role == nameof(RoleUtilisateur.SuperviseurPit) ||
+               role == nameof(RoleUtilisateur.OperateurProduction) ||
+               role == nameof(RoleUtilisateur.Administrateur);
     }
 }

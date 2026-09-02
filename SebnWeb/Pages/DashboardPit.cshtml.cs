@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SebnWeb.Data;
 using SebnWeb.Models;
+using SebnWeb.Services;
 
 namespace SebnWeb.Pages;
 
@@ -19,7 +20,7 @@ public class DashboardPitModel : PageModel
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
         if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.SuperviseurPit))
-            return RedirectToPage("/Index");
+            return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Stats = _store.StatsGenerales();
         RepartitionPoste = _store.RepartitionParPoste();

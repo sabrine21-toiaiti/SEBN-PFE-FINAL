@@ -20,6 +20,33 @@ ia-service/__pycache__/
 ia-service/*.py[cod]
 ia-service/data/
 **/__pycache__/
+**/.venv/
+
+# Local archives, credentials and test artifacts
+*.rar
+*.cookies
+cookies.txt
+login.html
+ia-service/domain-preview/
+ia-service/domain-test-results.txt
+ia-service/domain-data/
+SebnWeb/Data/DataProtectionKeys/
+SebnWeb/wwwroot/captures/
+
+# Personal inspection scripts and generated reports
+check_db.py
+check_git_status.py
+inspect_db.py
+inspect_db_complete.py
+inspect_db_detailed.py
+inspect_sqlite.py
+ia_check_test.py
+Inspect-DB.ps1
+AUDIT_*.md
+AUDIT_REPORT.json
+E2E_VALIDATION_REPORT.md
+GUIDE_PRESENTATION_PFE.md
+README_AUDIT.md
 
 # OS / editor
 .DS_Store

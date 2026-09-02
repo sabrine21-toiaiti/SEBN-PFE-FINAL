@@ -39,6 +39,7 @@ public class IndexModel : PageModel
 
         var utilisateur = resultat.Utilisateur;
         HttpContext.Session.SetString("NomAffichage", utilisateur.NomAffichage);
+        HttpContext.Session.SetString("Login", utilisateur.Login);
         HttpContext.Session.SetString("Role", utilisateur.Role.ToString());
         HttpContext.Session.SetInt32("IdUtilisateur", utilisateur.IdUtilisateur);
 

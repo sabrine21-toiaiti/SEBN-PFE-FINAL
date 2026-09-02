@@ -19,7 +19,7 @@ from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger("uvicorn.error")
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-INFERENCE_TIMEOUT_SECONDS = 50
+INFERENCE_TIMEOUT_SECONDS = 90
 inference_lock = asyncio.Semaphore(1)
 
 app = FastAPI(title="SEBN - Microservice de Détection IA")
@@ -43,21 +43,18 @@ class AnomalieDetectee(BaseModel):
 class ResultatDetection(BaseModel):
     image_base64: str
     anomalie: Optional[AnomalieDetectee] = None
+    status: Optional[str] = None
+    domain_valid: Optional[bool] = None
+    message: Optional[str] = None
 
 
 @app.on_event("startup")
 async def precharger_modele():
-    """Évite un blocage de démarrage sur le premier chargement du modèle YOLO.
-    Le préchauffage continue en arrière-plan, sans empêcher le service de répondre.
-    """
-    async def _background_warmup():
-        try:
-            await asyncio.to_thread(detecteur.precharger_modele)
-            logger.info("[IA] detection module ready before accepting requests")
-        except Exception:
-            logger.exception("[IA] detection module could not be preloaded")
-
-    asyncio.create_task(_background_warmup())
+    """Ne pas exécuter le warm-up YOLO au démarrage : celui-ci est bloquant et
+    coûteux en CPU. Le modèle est initialisé à la demande lors de la vraie
+    première détection."""
+    logger.info("[IA] startup complete; YOLO loaded lazily on first real inference")
+    return None
 
 
 @app.get("/health")
@@ -69,19 +66,49 @@ def health():
 def detect():
     img, resultat = detecteur.capturer_et_analyser()
 
+    if img is None:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": "La caméra industrielle est indisponible ou n'a fourni aucune image.",
+                "code": "CAMERA_UNAVAILABLE",
+            },
+        )
+
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     image_b64 = base64.b64encode(buffer.getvalue()).decode()
 
     anomalie = None
+    status = None
+    domain_valid = None
+    message = None
     if resultat:
-        anomalie = AnomalieDetectee(
-            type_anomalie=resultat["type_anomalie"],
-            classe=resultat["classe"],
-            confiance=resultat["confiance"],
-        )
+        if resultat.get("status") == "hors_domaine":
+            status = "hors_domaine"
+            domain_valid = False
+            message = resultat.get("message")
+        elif resultat.get("status") == "conforme":
+            status = "conforme"
+            domain_valid = True
+            message = resultat.get("message")
+        else:
+            anomalie = AnomalieDetectee(
+                type_anomalie=resultat["type_anomalie"],
+                classe=resultat["classe"],
+                confiance=resultat["confiance"],
+            )
+            status = "anomalie"
+            domain_valid = True
 
-    return ResultatDetection(image_base64=image_b64, anomalie=anomalie)
+    return ResultatDetection(
+        image_base64=image_b64,
+        anomalie=anomalie,
+        status=status,
+        domain_valid=domain_valid,
+        message=message,
+    )
 
 
 @app.post("/detect-image", response_model=ResultatDetection)
@@ -136,14 +163,34 @@ async def detect_image(file: UploadFile = File(...)):
         logger.info("[IA] Total: %.3f s", time.perf_counter() - started)
 
         anomalie = None
+        status = None
+        domain_valid = None
+        message = None
         if resultat:
-            anomalie = AnomalieDetectee(
-                type_anomalie=resultat["type_anomalie"],
-                classe=resultat["classe"],
-                confiance=resultat["confiance"],
-            )
+            if resultat.get("status") == "hors_domaine":
+                status = "hors_domaine"
+                domain_valid = False
+                message = resultat.get("message")
+            elif resultat.get("status") == "conforme":
+                status = "conforme"
+                domain_valid = True
+                message = resultat.get("message")
+            else:
+                anomalie = AnomalieDetectee(
+                    type_anomalie=resultat["type_anomalie"],
+                    classe=resultat["classe"],
+                    confiance=resultat["confiance"],
+                )
+                status = "anomalie"
+                domain_valid = True
 
-        return ResultatDetection(image_base64=image_b64, anomalie=anomalie)
+        return ResultatDetection(
+            image_base64=image_b64,
+            anomalie=anomalie,
+            status=status,
+            domain_valid=domain_valid,
+            message=message,
+        )
     except UnidentifiedImageError:
         logger.warning("IA image detection rejected an invalid image")
         return JSONResponse(

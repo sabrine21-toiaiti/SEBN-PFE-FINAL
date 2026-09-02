@@ -14,10 +14,14 @@ from pathlib import Path
 import random
 import threading
 import logging
+from typing import Any, Dict, Optional
 from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger("uvicorn.error")
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "best.pt"
+DOMAIN_MODEL_PATH = Path(__file__).resolve().parent / "models" / "domain_classifier.pt"
+DOMAIN_MODEL_CACHE: Optional[Any] = None
+DOMAIN_MODEL_CACHE_LOCK = threading.Lock()
 
 CLASSES_DEFAUTS = {
     "Qualité": ["connecteur_manquant", "fil_mal_positionne", "defaut_couleur", "sertissage_defectueux"],
@@ -35,6 +39,79 @@ COULEURS = {
 
 def modele_reel_disponible() -> bool:
     return MODEL_PATH.is_file()
+
+
+def _charger_classifieur_domaine():
+    global DOMAIN_MODEL_CACHE
+    if DOMAIN_MODEL_PATH.exists() is False:
+        return None
+    if DOMAIN_MODEL_CACHE is not None:
+        return DOMAIN_MODEL_CACHE
+
+    with DOMAIN_MODEL_CACHE_LOCK:
+        if DOMAIN_MODEL_CACHE is not None:
+            return DOMAIN_MODEL_CACHE
+
+        try:
+            import torch
+            from torchvision import transforms
+            from torchvision.models import mobilenet_v3_small
+            from torch import nn
+
+            checkpoint = torch.load(DOMAIN_MODEL_PATH, map_location="cpu")
+            model = mobilenet_v3_small(weights=None)
+            model.classifier[3] = nn.Linear(model.classifier[3].in_features, 2)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            model.eval()
+
+            transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+            DOMAIN_MODEL_CACHE = {"model": model, "transform": transform, "classes": checkpoint.get("classes", ["hors_domaine", "industrial"])}
+            return DOMAIN_MODEL_CACHE
+        except Exception:
+            logger.exception("[IA] Impossible de charger le classifieur de domaine industriel")
+            return None
+
+
+def verifier_image_industrielle(img: Image.Image) -> Dict[str, Any]:
+    """Retourne un verdict binaire sur l'appartenance de l'image au domaine industriel.
+    Le garde-fou est strict : si le classifieur est absent ou invalide, l'image est
+    rejetée immédiatement pour éviter toute acceptation par défaut."""
+    classifieur = _charger_classifieur_domaine()
+    if classifieur is None:
+        return {
+            "valide": False,
+            "label": "domain_classifier_missing",
+            "confiance": 0.0,
+            "message": "Classifieur de domaine absent ou invalide : refus strict de traiter l'image.",
+            "skip": False,
+        }
+
+    try:
+        import torch
+        tensor = classifieur["transform"](img.convert("RGB")).unsqueeze(0)
+        with torch.no_grad():
+            logits = classifieur["model"](tensor)
+            probs = torch.softmax(logits, dim=1)[0]
+            idx = int(torch.argmax(probs).item())
+            conf = float(probs[idx].item())
+            label = classifieur["classes"][idx]
+        industrial_index = classifieur["classes"].index("industrial") if "industrial" in classifieur["classes"] else 0
+        industrial_probability = float(probs[industrial_index].item())
+        is_valid = (label == "industrial" and conf >= 0.55) or 0.45 <= industrial_probability <= 0.55
+        return {
+            "valide": bool(is_valid),
+            "label": label,
+            "confiance": round(conf, 4),
+            "industrial_probability": round(industrial_probability, 4) if industrial_index < len(probs) else 0.0,
+            "message": "Image conforme au domaine industriel." if is_valid else "Image hors domaine : ce n'est pas un poste industriel valide.",
+        }
+    except Exception:
+        logger.exception("[IA] validation du domaine industriel a échoué")
+        return {"valide": False, "label": "unknown", "confiance": 0.0, "message": "Validation du domaine impossible : refus de traiter l'image."}
 
 
 class ModuleDetectionSimulation:
@@ -75,6 +152,16 @@ class ModuleDetectionSimulation:
         """Analyse une photo réelle fournie (caméra du navigateur, PC ou téléphone).
         Simule une détection réaliste superposée sur la vraie photo."""
         img = img.convert("RGB").copy()
+        validation = verifier_image_industrielle(img)
+        if not validation["valide"]:
+            logger.warning("[IA] simulation image rejected by domain guard: %s (confidence=%.3f)", validation["label"], validation["confiance"])
+            return img, {
+                "status": "hors_domaine",
+                "domain_valid": False,
+                "message": validation["message"],
+                "domain_confidence": validation["confiance"],
+                "domain_label": validation["label"],
+            }
         draw = ImageDraw.Draw(img)
         return self._analyser_et_annoter(img, draw, dessiner_fond=False)
 
@@ -120,7 +207,7 @@ class ModuleDetectionYOLO:
     Nécessite : pip install opencv-python ultralytics
     """
 
-    def __init__(self, chemin_modele=MODEL_PATH, source_camera=0, seuil_confiance=0.5):
+    def __init__(self, chemin_modele=MODEL_PATH, source_camera=0, seuil_confiance=0.2):
         self.chemin_modele = str(chemin_modele)
         self.source_camera = source_camera
         self.seuil_confiance = seuil_confiance
@@ -142,24 +229,12 @@ class ModuleDetectionYOLO:
         return self.model
 
     def precharger_modele(self):
-        model = self._charger_modele()
-        import numpy as np
-        import torch
-        torch.set_num_threads(min(2, torch.get_num_threads()))
-        try:
-            torch.set_num_interop_threads(1)
-        except RuntimeError:
-            pass
-        logger.info("[IA] warming up YOLO inference")
-        model.predict(
-            np.zeros((320, 320, 3), dtype=np.uint8),
-            conf=self.seuil_confiance,
-            imgsz=320,
-            batch=1,
-            device="cpu",
-            verbose=False,
-        )
-        logger.info("[IA] YOLO inference warm-up complete")
+        """Initialisation paresseuse du modèle YOLO : on charge le modèle seulement
+        au moment de la première vraie détection, sans exécuter un warm-up bloquant
+        au démarrage du service."""
+        self._charger_modele()
+        logger.info("[IA] YOLO model initialized lazily; startup warm-up disabled")
+        return None
 
     def _ouvrir_camera(self):
         if self.camera is None:
@@ -190,6 +265,17 @@ class ModuleDetectionYOLO:
     def analyser_image_fournie(self, img: Image.Image):
         """Analyse réelle (YOLO) d'une photo fournie par la caméra du navigateur.
         Image redimensionnée pour accélérer l'inférence CPU (plan gratuit sans GPU)."""
+        validation = verifier_image_industrielle(img)
+        if not validation["valide"]:
+            logger.warning("[IA] image rejected before YOLO: %s (confidence=%.3f)", validation["label"], validation["confiance"])
+            return img.copy(), {
+                "status": "hors_domaine",
+                "domain_valid": False,
+                "message": validation["message"],
+                "domain_confidence": validation["confiance"],
+                "domain_label": validation["label"],
+            }
+
         import numpy as np
         model = self._charger_modele()
         img_rgb = img.convert("RGB")
@@ -215,6 +301,8 @@ class ModuleDetectionYOLO:
                 resultat = {"type_anomalie": "Qualité", "classe": classe,
                             "confiance": round(float(box.conf[0]), 2)}
                 break
+        if resultat is None:
+            return img_annotee, {"status": "conforme", "domain_valid": True, "message": "Aucune anomalie détectée sur un poste industriel valide."}
         return img_annotee, resultat
 
     def liberer(self):

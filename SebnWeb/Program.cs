@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Antiforgery;
 using SebnWeb.Data;
 using SebnWeb.Models;
 using SebnWeb.Services;
@@ -14,6 +15,7 @@ if (!string.IsNullOrEmpty(port))
 }
 
 builder.Services.AddRazorPages();
+builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
 builder.Services.AddSingleton<AppDataStore>();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddDataProtection()
@@ -40,6 +42,20 @@ builder.Services.AddHttpClient<DetectionApiClient>(client =>
 });
 
 var app = builder.Build();
+var antiforgery = app.Services.GetRequiredService<IAntiforgery>();
+
+async Task<bool> RequeteApiProtegeeAsync(HttpContext ctx)
+{
+    try
+    {
+        await antiforgery.ValidateRequestAsync(ctx);
+        return true;
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return false;
+    }
+}
 
 // Forcer l'initialisation de la base de données au démarrage
 try
@@ -71,9 +87,13 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!await RequeteApiProtegeeAsync(ctx))
+        return Results.BadRequest(new { error = "Jeton de sécurité invalide ou manquant." });
 
     var body = await ctx.Request.ReadFromJsonAsync<PhotoRequest>();
     if (body == null || string.IsNullOrEmpty(body.ImageBase64))
@@ -105,6 +125,22 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
     if (resultat == null)
         return Results.Json(new { erreur = "Microservice IA indisponible." }, statusCode: 503);
 
+    if (resultat.Status == "hors_domaine")
+    {
+        return Results.Json(new
+        {
+            imageBase64 = resultat.ImageBase64,
+            anomalie = (object?)null,
+            status = "hors_domaine",
+            domainValid = false,
+            message = string.IsNullOrWhiteSpace(resultat.Message) ? "Image hors domaine : ce n'est pas un poste industriel valide." : resultat.Message
+        });
+    }
+
+    var idPoste = string.IsNullOrWhiteSpace(body.IdPoste) ? "P01" : body.IdPoste.Trim();
+    if (!store.PosteExiste(idPoste))
+        return Results.BadRequest(new { error = "Poste sélectionné invalide." });
+
     if (resultat.Anomalie != null)
     {
         var seuil = store.ObtenirSeuilConfianceMinimale();
@@ -119,7 +155,7 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
                 resultat.Anomalie.Classe,
                 resultat.Anomalie.Confiance,
                 imagePreuve ?? "captures/camera-navigateur.jpg",
-                string.IsNullOrEmpty(body.IdPoste) ? "P01" : body.IdPoste,
+                idPoste,
                 "OP101"
             );
         }
@@ -133,20 +169,30 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
             type = resultat.Anomalie.TypeAnomalie,
             classe = resultat.Anomalie.Classe,
             confiance = resultat.Anomalie.Confiance
-        }
+        },
+        status = resultat.Status ?? (resultat.Anomalie == null ? "conforme" : "anomalie"),
+        domainValid = resultat.DomainValid ?? true,
+        message = resultat.Message
     });
 });
 
-app.MapPost("/api/camera-signal-perdu", (HttpContext ctx, AppDataStore store, SignalPerteRequest body) =>
+app.MapPost("/api/camera-signal-perdu", async (HttpContext ctx, AppDataStore store, SignalPerteRequest body) =>
 {
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
-    var idPoste = string.IsNullOrEmpty(body.IdPoste) ? "P01" : body.IdPoste;
+    if (!await RequeteApiProtegeeAsync(ctx))
+        return Results.BadRequest(new { error = "Jeton de sécurité invalide ou manquant." });
+
+    var idPoste = string.IsNullOrWhiteSpace(body.IdPoste) ? "P01" : body.IdPoste.Trim();
+    if (!store.PosteExiste(idPoste))
+        return Results.BadRequest(new { error = "Poste sélectionné invalide." });
     store.SignalerPerteFluxCamera(idPoste);
     return Results.Ok();
 });
@@ -155,7 +201,9 @@ app.MapGet("/api/notifications", (HttpContext ctx, AppDataStore store) =>
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     var notifications = store.ListeNotificationsNonLues()
@@ -163,12 +211,17 @@ app.MapGet("/api/notifications", (HttpContext ctx, AppDataStore store) =>
     return Results.Json(notifications);
 });
 
-app.MapPost("/api/notifications/{id:int}/lue", (int id, HttpContext ctx, AppDataStore store) =>
+app.MapPost("/api/notifications/{id:int}/lue", async (int id, HttpContext ctx, AppDataStore store) =>
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    if (!await RequeteApiProtegeeAsync(ctx))
+        return Results.BadRequest(new { error = "Jeton de sécurité invalide ou manquant." });
 
     store.MarquerNotificationLue(id);
     return Results.Ok();

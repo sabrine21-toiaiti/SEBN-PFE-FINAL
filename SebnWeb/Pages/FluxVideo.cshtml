@@ -57,7 +57,14 @@ else if (Model.ModeIA == "simulation")
 
         <div id="posteAlerte"></div>
 
-        @if (Model.Anomalie != null)
+        @if (Model.Statut == "hors_domaine")
+        {
+            <div class="alert alert-warning">
+                <strong>⚠️ Image hors domaine industriel</strong><br />
+                @(!string.IsNullOrWhiteSpace(Model.Message) ? Model.Message : "Cette image ne correspond pas à un poste industriel valide.")
+            </div>
+        }
+        else if (Model.Anomalie != null)
         {
             <div class="alert alert-danger">
                 <strong>⚠️ @Model.Anomalie.TypeAnomalie détecté</strong><br />
@@ -145,9 +152,35 @@ else if (Model.ModeIA == "simulation")
     const demoImageZone = document.getElementById('demoImageZone');
     const demoAlerte = document.getElementById('demoAlerte');
     const demoSamples = document.querySelectorAll('.btn-demo-sample');
+    const csrfToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
     let stream = null;
     let signalPerduEnvoye = false;
     let surveillanceIntervalId = null;
+
+    function entitesHtml(value) {
+        const element = document.createElement('div');
+        element.textContent = value ?? '';
+        return element.innerHTML;
+    }
+
+    function entetesApi() {
+        return { 'Content-Type': 'application/json', 'RequestVerificationToken': csrfToken || '' };
+    }
+
+    function imageBase64Securisee(value) {
+        const base64 = String(value || '').replace(/^data:image\/[^;]+;base64,/, '');
+        return /^[A-Za-z0-9+/]+={0,2}$/.test(base64) ? base64 : '';
+    }
+
+    async function fetchAvecTimeout(url, options, dureeMs = 45000) {
+        const controleur = new AbortController();
+        const timer = setTimeout(() => controleur.abort(), dureeMs);
+        try {
+            return await fetch(url, { ...options, signal: controleur.signal });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
 
     function idPosteActuel() {
         return document.querySelector('select[name="IdPoste"]')?.value || 'P01';
@@ -173,9 +206,13 @@ else if (Model.ModeIA == "simulation")
     }
 
     function afficherResultat(zone, alerte, data) {
-        zone.innerHTML = '<img src="data:image/jpeg;base64,' + data.imageBase64 + '" class="img-fluid rounded" alt="Image industrielle analysée" />';
+        zone.innerHTML = '<img src="data:image/jpeg;base64,' + imageBase64Securisee(data.imageBase64) + '" class="img-fluid rounded" alt="Image industrielle analysée" />';
+        if (data.status === 'hors_domaine') {
+            alerte.innerHTML = '<div class="alert alert-warning"><strong>⚠️ Image hors domaine industriel</strong><br>' + entitesHtml(data.message || 'Cette image ne correspond pas à un poste industriel valide.') + '</div>';
+            return;
+        }
         alerte.innerHTML = data.anomalie
-            ? '<div class="alert alert-danger"><strong>⚠️ ' + data.anomalie.type + ' détecté</strong><br>Classe : <code>' + data.anomalie.classe + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
+            ? '<div class="alert alert-danger"><strong>⚠️ ' + entitesHtml(data.anomalie.type) + ' détecté</strong><br>Classe : <code>' + entitesHtml(data.anomalie.classe) + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
             : '<div class="alert alert-success">✅ Poste conforme</div>';
     }
 
@@ -185,9 +222,9 @@ else if (Model.ModeIA == "simulation")
         bouton.textContent = '⏳ Analyse en cours...';
         demoAlerte.innerHTML = '';
         try {
-            const rep = await fetch('/api/detect-photo', {
+            const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: entetesApi(),
                 body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
             });
             const data = await rep.json();
@@ -196,7 +233,7 @@ else if (Model.ModeIA == "simulation")
             }
             afficherResultat(demoImageZone, demoAlerte, data);
         } catch (err) {
-            demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+            demoAlerte.innerHTML = '<div class="alert alert-danger">' + entitesHtml(messageErreurCamera(err)) + '</div>';
         } finally {
             bouton.disabled = false;
             bouton.textContent = texteInitial;
@@ -222,7 +259,7 @@ else if (Model.ModeIA == "simulation")
         try {
             await analyserDemonstration(await lireImageCommeBase64(demoFile.files[0]), btnAnalyserDemo);
         } catch (err) {
-            demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+            demoAlerte.innerHTML = '<div class="alert alert-danger">' + entitesHtml(messageErreurCamera(err)) + '</div>';
         }
     });
 
@@ -234,7 +271,7 @@ else if (Model.ModeIA == "simulation")
                 const fichier = await rep.blob();
                 await analyserDemonstration(await lireImageCommeBase64(fichier), bouton);
             } catch (err) {
-                demoAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+                demoAlerte.innerHTML = '<div class="alert alert-danger">' + entitesHtml(messageErreurCamera(err)) + '</div>';
             }
         });
     });
@@ -245,7 +282,7 @@ else if (Model.ModeIA == "simulation")
         try {
             await fetch('/api/camera-signal-perdu', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: entetesApi(),
                 body: JSON.stringify({ idPoste: idPosteActuel() })
             });
         } catch (e) { /* silencieux : notification best-effort */ }
@@ -265,7 +302,7 @@ else if (Model.ModeIA == "simulation")
             if (track.readyState !== 'live' || video.readyState < 2) {
                 signalerPerteFlux();
             }
-        }, 10000);
+        }, @Model.TimeoutPerteCameraSecondes * 1000);
     }
 
     btnCapturerPoste.addEventListener('click', async (event) => {
@@ -288,9 +325,9 @@ else if (Model.ModeIA == "simulation")
             }
 
             const imageBase64 = preparerCapture();
-            const rep = await fetch('/api/detect-photo', {
+            const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: entetesApi(),
                 body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
             });
             const data = await rep.json();
@@ -299,12 +336,16 @@ else if (Model.ModeIA == "simulation")
                 throw new Error(data.erreur || 'Analyse impossible.');
             }
 
-            posteImageZone.innerHTML = '<img src="data:image/jpeg;base64,' + data.imageBase64 + '" class="img-fluid rounded" alt="Image analysée" />';
-            posteAlerte.innerHTML = data.anomalie
-                ? '<div class="alert alert-danger"><strong>⚠️ ' + data.anomalie.type + ' détecté</strong><br>Classe : <code>' + data.anomalie.classe + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
-                : '<div class="alert alert-success">✅ Poste conforme</div>';
+            posteImageZone.innerHTML = '<img src="data:image/jpeg;base64,' + imageBase64Securisee(data.imageBase64) + '" class="img-fluid rounded" alt="Image analysée" />';
+            if (data.status === 'hors_domaine') {
+                posteAlerte.innerHTML = '<div class="alert alert-warning"><strong>⚠️ Image hors domaine industriel</strong><br>' + entitesHtml(data.message || 'Cette image ne correspond pas à un poste industriel valide.') + '</div>';
+            } else {
+                posteAlerte.innerHTML = data.anomalie
+                    ? '<div class="alert alert-danger"><strong>⚠️ ' + entitesHtml(data.anomalie.type) + ' détecté</strong><br>Classe : <code>' + entitesHtml(data.anomalie.classe) + '</code><br>Confiance : ' + Math.round(data.anomalie.confiance * 100) + '%</div>'
+                    : '<div class="alert alert-success">✅ Poste conforme</div>';
+            }
         } catch (err) {
-            posteAlerte.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+            posteAlerte.innerHTML = '<div class="alert alert-danger">' + entitesHtml(messageErreurCamera(err)) + '</div>';
         }
 
         btnCapturerPoste.disabled = false;
@@ -323,7 +364,7 @@ else if (Model.ModeIA == "simulation")
             btnCapturer.disabled = false;
             demarrerSurveillanceFlux(stream.getVideoTracks()[0]);
         } catch (err) {
-            alerteZone.innerHTML = '<div class="alert alert-danger">' + messageErreurCamera(err) + '</div>';
+            alerteZone.innerHTML = '<div class="alert alert-danger">' + entitesHtml(messageErreurCamera(err)) + '</div>';
         }
     });
 
@@ -339,31 +380,34 @@ else if (Model.ModeIA == "simulation")
 
         try {
             const idPoste = document.querySelector('select[name="IdPoste"]')?.value || 'P01';
-            const rep = await fetch('/api/detect-photo', {
+            const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: entetesApi(),
                 body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPoste })
             });
             const data = await rep.json();
 
             if (data.erreur) {
-                alerteZone.innerHTML = '<div class="alert alert-warning">' + data.erreur + '</div>';
+                alerteZone.innerHTML = '<div class="alert alert-warning">' + entitesHtml(data.erreur) + '</div>';
             } else {
-                resultImg.src = 'data:image/jpeg;base64,' + data.imageBase64;
+                resultImg.src = 'data:image/jpeg;base64,' + imageBase64Securisee(data.imageBase64);
                 resultImg.style.display = 'block';
                 video.style.display = 'none';
 
-                if (data.anomalie) {
+                if (data.status === 'hors_domaine') {
+                    alerteZone.innerHTML = '<div class="alert alert-warning"><strong>⚠️ Image hors domaine industriel</strong><br>' +
+                        entitesHtml(data.message || 'Cette image ne correspond pas à un poste industriel valide.') + '</div>';
+                } else if (data.anomalie) {
                     alerteZone.innerHTML = '<div class="alert alert-danger"><strong>⚠️ ' +
-                        data.anomalie.type + ' détecté</strong><br>Classe : <code>' +
-                        data.anomalie.classe + '</code><br>Confiance : ' +
+                        entitesHtml(data.anomalie.type) + ' détecté</strong><br>Classe : <code>' +
+                        entitesHtml(data.anomalie.classe) + '</code><br>Confiance : ' +
                         Math.round(data.anomalie.confiance * 100) + '%</div>';
                 } else {
                     alerteZone.innerHTML = '<div class="alert alert-success">✅ Poste conforme</div>';
                 }
             }
         } catch (err) {
-            alerteZone.innerHTML = '<div class="alert alert-danger">Erreur réseau : ' + err.message + '</div>';
+            alerteZone.innerHTML = '<div class="alert alert-danger">Erreur réseau : ' + entitesHtml(err.message) + '</div>';
         }
 
         btnCapturer.disabled = false;

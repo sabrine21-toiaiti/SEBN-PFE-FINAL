@@ -33,7 +33,7 @@ else
             {
                 <div id="sebnNotifBox" style="margin: 10px 0; display:none;">
                     <div class="alert alert-warning py-2 px-2" style="font-size:12px; margin-bottom:0;">
-                        <span id="sebnNotifCount">0</span> alerte(s) caméra — <a href="#" id="sebnNotifLien" style="color:inherit; text-decoration:underline;">voir</a>
+                        <span id="sebnNotifCount">0</span> alerte(s) caméra — <a href="/FluxVideo" id="sebnNotifLien" style="color:inherit; text-decoration:underline;">voir</a>
                     </div>
                 </div>
             }
@@ -89,6 +89,12 @@ else
     @if (role == "Superviseur PIT")
     {
         <text>
+        const notifLien = document.getElementById('sebnNotifLien');
+        notifLien?.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.location.href = '/FluxVideo';
+        });
+
         async function sebnRafraichirNotifs() {
             try {
                 const rep = await fetch('/api/notifications');

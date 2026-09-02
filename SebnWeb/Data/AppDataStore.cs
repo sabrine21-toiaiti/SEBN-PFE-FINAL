@@ -437,6 +437,18 @@ public class AppDataStore
         }
     }
 
+    public bool PosteExiste(string idPoste)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT EXISTS(SELECT 1 FROM Postes WHERE IdPoste = $id)";
+            cmd.Parameters.AddWithValue("$id", idPoste);
+            return Convert.ToInt32(cmd.ExecuteScalar()) == 1;
+        }
+    }
+
     public Operateur? TrouverOperateur(string matricule)
     {
         lock (_verrou)

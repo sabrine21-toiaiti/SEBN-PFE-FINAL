@@ -248,6 +248,7 @@ div[data-testid="stMetricValue"] { color: var(--navy-dark); }
         transform: translateX(-105%);
         z-index: 999;
         box-shadow: var(--shadow-lg);
+        overflow-y: auto;
     }
     .sebn-sidebar.open { transform: translateX(0); }
 
