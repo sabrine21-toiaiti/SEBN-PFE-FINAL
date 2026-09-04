@@ -37,8 +37,9 @@ public class HistoriqueModel : PageModel
     public string? RoleActuel { get; set; }
     public Anomalie? AnomalieSelectionnee { get; set; }
 
-    public bool PeutCloturer => RoleActuel == nameof(RoleUtilisateur.SuperviseurQualite) ||
-                                RoleActuel == nameof(RoleUtilisateur.Administrateur);
+    public bool PeutCloturer => RoleActuel == nameof(RoleUtilisateur.SuperviseurProduction) ||
+                                RoleActuel == nameof(RoleUtilisateur.AuditeurQualite) ||
+                                RoleActuel == nameof(RoleUtilisateur.AdminPit);
 
     public bool ImagePreuveDisponible => AnomalieSelectionnee != null &&
         !string.IsNullOrWhiteSpace(AnomalieSelectionnee.ImagePreuve) &&
@@ -103,7 +104,7 @@ public class HistoriqueModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
-        if (!RolesAutorises())
+        if (!PeutCloturer)
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         _store.CloturerAnomalie(id);
@@ -113,8 +114,9 @@ public class HistoriqueModel : PageModel
     private bool RolesAutorises()
     {
         var role = HttpContext.Session.GetString("Role");
-        return role == nameof(RoleUtilisateur.SuperviseurQualite) ||
-               role == nameof(RoleUtilisateur.SuperviseurPit) ||
-               role == nameof(RoleUtilisateur.Administrateur);
+         return role == nameof(RoleUtilisateur.SuperviseurProduction) ||
+             role == nameof(RoleUtilisateur.AuditeurQualite) ||
+             role == nameof(RoleUtilisateur.AdminPit) ||
+             role == nameof(RoleUtilisateur.Direction);
     }
 }

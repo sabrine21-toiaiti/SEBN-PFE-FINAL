@@ -21,7 +21,7 @@ public class DashboardModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
-        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.SuperviseurQualite))
+        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.AuditeurQualite))
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Stats = _store.StatsGenerales();

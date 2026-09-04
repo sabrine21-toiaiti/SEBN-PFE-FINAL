@@ -1,26 +1,27 @@
 @page
 @model SebnWeb.Pages.OperateurModel
-@{ ViewData["Title"] = "Espace opérateur"; }
+@{ ViewData["Title"] = "Supervision Production"; }
 
 <div class="sebn-header">
     <div>
-        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Espace opérateur</div>
-        <div style="font-size:13px; color:#6b6b70;">Contrôle de votre poste et détection des non-conformités</div>
+        <div style="font-size:22px; font-weight:700; color:var(--navy-dark);">Supervision Production</div>
+        <div style="font-size:13px; color:#6b6b70;">Suivi de la ligne, validation des reprises et gestion des anomalies</div>
     </div>
 </div>
 
 <div class="row g-3">
     <div class="col-lg-7">
         <div class="sebn-kpi">
-            <h5>Détection qualité</h5>
-            <p class="text-muted">Lancez une capture pour contrôler le poste de production.</p>
-            <a class="btn btn-sebn" href="/FluxVideo">Ouvrir la détection</a>
+            <h5>Contrôle de la production</h5>
+            <p class="text-muted">Surveillez la ligne et lancez une détection en cas de doute.</p>
+            <a class="btn btn-sebn" href="/FluxVideo">Ouvrir la surveillance</a>
+            <a class="btn btn-outline-primary ms-2" href="/Historique">Voir l'historique équipe</a>
         </div>
     </div>
     <div class="col-lg-5">
         <div class="sebn-kpi">
             <h5>Votre rôle</h5>
-            <p class="mb-0">Opérateur de Production</p>
+            <p class="mb-0">Superviseur Production</p>
         </div>
     </div>
 </div>

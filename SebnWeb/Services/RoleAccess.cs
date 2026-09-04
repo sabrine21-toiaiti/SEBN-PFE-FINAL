@@ -12,9 +12,10 @@ public static class RoleAccess
 
     public static string PageAccueil(HttpContext context) => Role(context) switch
     {
-        nameof(RoleUtilisateur.Administrateur) => "/Administration",
-        nameof(RoleUtilisateur.SuperviseurPit) => "/DashboardPit",
-        nameof(RoleUtilisateur.OperateurProduction) => "/Operateur",
-        _ => "/Dashboard"
+        nameof(RoleUtilisateur.AdminPit) => "/Administration",
+        nameof(RoleUtilisateur.SuperviseurProduction) => "/Operateur",
+        nameof(RoleUtilisateur.AuditeurQualite) => "/Dashboard",
+        nameof(RoleUtilisateur.Direction) => "/DashboardPit",
+        _ => "/"
     };
 }

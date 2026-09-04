@@ -2,10 +2,10 @@ namespace SebnWeb.Models;
 
 public enum RoleUtilisateur
 {
-    OperateurProduction,
-    SuperviseurQualite,
-    SuperviseurPit,
-    Administrateur
+    SuperviseurProduction,
+    AuditeurQualite,
+    AdminPit,
+    Direction
 }
 
 public enum StatutAnomalie
@@ -24,10 +24,10 @@ public static class EnumLabels
 {
     public static string Libelle(this RoleUtilisateur role) => role switch
     {
-        RoleUtilisateur.OperateurProduction => "Opérateur de Production",
-        RoleUtilisateur.SuperviseurQualite => "Superviseur Qualité",
-        RoleUtilisateur.SuperviseurPit => "Superviseur PIT",
-        RoleUtilisateur.Administrateur => "Administrateur",
+        RoleUtilisateur.SuperviseurProduction => "Superviseur Production",
+        RoleUtilisateur.AuditeurQualite => "Auditeur Qualité",
+        RoleUtilisateur.AdminPit => "Admin PIT",
+        RoleUtilisateur.Direction => "Direction",
         _ => role.ToString()
     };
 

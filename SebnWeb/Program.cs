@@ -87,10 +87,10 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.AuditeurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.AdminPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurProduction) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Direction))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
     if (!await RequeteApiProtegeeAsync(ctx))
         return Results.BadRequest(new { error = "Jeton de sécurité invalide ou manquant." });
@@ -150,13 +150,19 @@ app.MapPost("/api/detect-photo", async (HttpContext ctx, DetectionApiClient api,
             if (string.IsNullOrWhiteSpace(imagePreuve))
                 imagePreuve = store.EnregistrerImagePreuveDepuisBase64(body.ImageBase64, "captures");
 
+            var matriculeOp = string.IsNullOrWhiteSpace(body.MatriculeOp)
+                ? store.ListeOperateurs().FirstOrDefault()?.MatriculeOp
+                : body.MatriculeOp.Trim();
+            if (matriculeOp == null || store.TrouverOperateur(matriculeOp) == null)
+                return Results.BadRequest(new { error = "Opérateur sélectionné invalide." });
+
             store.InsererAnomalie(
                 resultat.Anomalie.TypeAnomalie,
                 resultat.Anomalie.Classe,
                 resultat.Anomalie.Confiance,
                 imagePreuve ?? "captures/camera-navigateur.jpg",
                 idPoste,
-                "OP101"
+                matriculeOp
             );
         }
     }
@@ -181,10 +187,10 @@ app.MapPost("/api/camera-signal-perdu", async (HttpContext ctx, AppDataStore sto
     // Sécurité minimale : exige une session active (utilisateur connecté)
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.OperateurProduction) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.AuditeurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.AdminPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurProduction) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Direction))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     if (!await RequeteApiProtegeeAsync(ctx))
@@ -201,9 +207,9 @@ app.MapGet("/api/notifications", (HttpContext ctx, AppDataStore store) =>
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.AuditeurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.AdminPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Direction))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     var notifications = store.ListeNotificationsNonLues()
@@ -215,9 +221,9 @@ app.MapPost("/api/notifications/{id:int}/lue", async (int id, HttpContext ctx, A
 {
     if (ctx.Session.GetString("NomAffichage") == null)
         return Results.Unauthorized();
-    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurQualite) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.SuperviseurPit) &&
-        !RoleAccess.HasRole(ctx, RoleUtilisateur.Administrateur))
+    if (!RoleAccess.HasRole(ctx, RoleUtilisateur.AuditeurQualite) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.AdminPit) &&
+        !RoleAccess.HasRole(ctx, RoleUtilisateur.Direction))
         return Results.StatusCode(StatusCodes.Status403Forbidden);
 
     if (!await RequeteApiProtegeeAsync(ctx))
@@ -229,5 +235,5 @@ app.MapPost("/api/notifications/{id:int}/lue", async (int id, HttpContext ctx, A
 
 app.Run();
 
-record PhotoRequest(string ImageBase64, string? IdPoste);
+record PhotoRequest(string ImageBase64, string? IdPoste, string? MatriculeOp);
 record SignalPerteRequest(string? IdPoste);

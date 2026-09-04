@@ -101,7 +101,7 @@ def verifier_image_industrielle(img: Image.Image) -> Dict[str, Any]:
             label = classifieur["classes"][idx]
         industrial_index = classifieur["classes"].index("industrial") if "industrial" in classifieur["classes"] else 0
         industrial_probability = float(probs[industrial_index].item())
-        is_valid = (label == "industrial" and conf >= 0.55) or 0.45 <= industrial_probability <= 0.55
+        is_valid = label == "industrial" and industrial_probability >= 0.45
         return {
             "valide": bool(is_valid),
             "label": label,
@@ -195,7 +195,10 @@ class ModuleDetectionSimulation:
         else:
             # Cadre vert = conforme
             draw.rectangle([8, 8, largeur - 8, hauteur - 8], outline=COULEURS["conforme"], width=4)
-            resultat = None
+            resultat = {
+                "status": "conforme",
+                "message": "Aucune non-conformité détectée sur ce poste industriel.",
+            }
 
         return img, resultat
 

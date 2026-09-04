@@ -13,6 +13,10 @@
 {
     <div class="alert alert-success">@message</div>
 }
+@if (TempData["ErreurAdmin"] is string erreur)
+{
+    <div class="alert alert-danger">@erreur</div>
+}
 
 <ul class="nav nav-tabs mb-3">
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#postes">🖥️ Postes & Caméras</a></li>
@@ -22,26 +26,71 @@
 
 <div class="tab-content">
     <div class="tab-pane fade show active" id="postes">
+        <div class="sebn-kpi mb-3">
+            <h5>Ajouter un poste</h5>
+            <form method="post" asp-page-handler="AjouterPoste" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <div class="col-md-3"><label class="form-label">Identifiant poste</label><input class="form-control" name="IdPoste" required /></div>
+                <div class="col-md-3"><label class="form-label">Ligne de production</label><input class="form-control" name="LigneProduction" required /></div>
+                <div class="col-md-3"><label class="form-label">Caméra</label><select class="form-select" name="IdCamera"><option value="">Sans caméra</option>@foreach (var c in Model.Cameras) { <option value="@c.IdCamera">@c.IdCamera</option> }</select></div>
+                <div class="col-md-3"><button class="btn btn-sebn w-100" type="submit">Ajouter le poste</button></div>
+            </form>
+        </div>
         <div class="sebn-kpi">
-            <table class="table">
-                <thead><tr><th>Poste</th><th>Ligne</th><th>Caméra</th></tr></thead>
+            <table class="table"><thead><tr><th>Poste</th><th>Ligne</th><th>Caméra</th><th>Action</th></tr></thead>
                 <tbody>
                 @foreach (var p in Model.Postes)
                 {
-                    <tr><td>@p.IdPoste</td><td>@p.LigneProduction</td><td>@p.IdCamera</td></tr>
+                    <tr><td>@p.IdPoste</td><td>@p.LigneProduction</td><td>@p.IdCamera</td><td><form method="post" asp-page-handler="SupprimerPoste" onsubmit="return confirm('Supprimer ce poste ?');">@Html.AntiForgeryToken()<input type="hidden" name="IdPoste" value="@p.IdPoste" /><button class="btn btn-sm btn-outline-danger">Supprimer</button></form></td></tr>
                 }
                 </tbody>
             </table>
+            <hr /><h5>Caméras</h5>
+            <form method="post" asp-page-handler="AjouterCamera" class="row g-2 mb-3">@Html.AntiForgeryToken()<div class="col-md-8"><input class="form-control" name="IdCamera" placeholder="Identifiant caméra" required /></div><div class="col-md-4"><button class="btn btn-outline-primary w-100">Ajouter la caméra</button></div></form>
+            <table class="table table-sm"><thead><tr><th>Caméra</th><th>État</th><th>Action</th></tr></thead><tbody>@foreach (var c in Model.Cameras) { <tr><td>@c.IdCamera</td><td>@c.StatutConnexion</td><td><form method="post" asp-page-handler="SupprimerCamera">@Html.AntiForgeryToken()<input type="hidden" name="IdCamera" value="@c.IdCamera" /><button class="btn btn-sm btn-outline-danger">Supprimer</button></form></td></tr> }</tbody></table>
         </div>
     </div>
     <div class="tab-pane fade" id="comptes">
+        <div class="sebn-kpi mb-3">
+            <h5>Ajouter un acteur</h5>
+            <form method="post" asp-page-handler="AjouterUtilisateur" class="row g-2 align-items-end">
+                @Html.AntiForgeryToken()
+                <div class="col-md-3"><label class="form-label" for="LoginUtilisateur">Login</label><input class="form-control" id="LoginUtilisateur" name="LoginUtilisateur" required /></div>
+                <div class="col-md-3"><label class="form-label" for="NomUtilisateur">Nom affiché</label><input class="form-control" id="NomUtilisateur" name="NomUtilisateur" required /></div>
+                <div class="col-md-2"><label class="form-label" for="MotDePasseUtilisateur">Mot de passe</label><input class="form-control" id="MotDePasseUtilisateur" name="MotDePasseUtilisateur" type="password" minlength="6" required /></div>
+                <div class="col-md-2"><label class="form-label" for="RoleUtilisateur">Rôle</label><select class="form-select" id="RoleUtilisateur" name="RoleUtilisateur">@foreach (var role in Enum.GetValues<RoleUtilisateur>()) { <option value="@role">@role.Libelle()</option> }</select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-sebn w-100">Ajouter</button></div>
+            </form>
+        </div>
         <div class="sebn-kpi">
             <table class="table">
-                <thead><tr><th>Login</th><th>Rôle</th><th>Nom affiché</th></tr></thead>
+                <thead><tr><th>Login</th><th>Rôle</th><th>Nom affiché</th><th>Actions</th></tr></thead>
                 <tbody>
                 @foreach (var u in Model.Utilisateurs)
                 {
-                    <tr><td>@u.Login</td><td>@u.Role.Libelle()</td><td>@u.NomAffichage</td></tr>
+                    <tr>
+                        <td>@u.Login</td><td>@u.Role.Libelle()</td><td>@u.NomAffichage</td>
+                        <td class="d-flex gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modifierUtilisateur-@u.IdUtilisateur">Modifier</button>
+                            <form method="post" asp-page-handler="SupprimerUtilisateur" onsubmit="return confirm('Supprimer cet acteur ?');">
+                                @Html.AntiForgeryToken()<input type="hidden" name="IdUtilisateur" value="@u.IdUtilisateur" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Supprimer</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <div class="modal fade" id="modifierUtilisateur-@u.IdUtilisateur" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog"><div class="modal-content"><form method="post" asp-page-handler="ModifierUtilisateur">
+                            @Html.AntiForgeryToken()<input type="hidden" name="IdUtilisateur" value="@u.IdUtilisateur" />
+                            <div class="modal-header"><h5 class="modal-title">Modifier @u.Login</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button></div>
+                            <div class="modal-body">
+                                <label class="form-label">Login</label><input class="form-control mb-2" name="LoginUtilisateur" value="@u.Login" required />
+                                <label class="form-label">Nom affiché</label><input class="form-control mb-2" name="NomUtilisateur" value="@u.NomAffichage" required />
+                                <label class="form-label">Nouveau mot de passe <span class="text-muted">(laisser vide pour conserver)</span></label><input class="form-control mb-2" name="MotDePasseUtilisateur" type="password" minlength="6" />
+                                <label class="form-label">Rôle</label><select class="form-select" name="RoleUtilisateur">@foreach (var role in Enum.GetValues<RoleUtilisateur>()) { <option value="@role" selected="@(role == u.Role)">@role.Libelle()</option> }</select>
+                            </div>
+                            <div class="modal-footer"><button type="submit" class="btn btn-sebn">Enregistrer</button></div>
+                        </form></div></div>
+                    </div>
                 }
                 </tbody>
             </table>

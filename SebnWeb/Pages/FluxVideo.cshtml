@@ -49,6 +49,13 @@ else if (Model.ModeIA == "simulation")
                         <option value="@p.IdPoste">@p.IdPoste — @p.LigneProduction</option>
                     }
                 </select>
+                <label class="form-label">Opérateur</label>
+                <select class="form-select mb-3" asp-for="MatriculeOp">
+                    @foreach (var op in Model.Operateurs)
+                    {
+                        <option value="@op.MatriculeOp">@op.MatriculeOp — @op.NomComplet</option>
+                    }
+                </select>
                 <button id="btnCapturerPoste" type="submit" class="btn btn-sebn w-100">
                     ▶️ Capturer une image
                 </button>
@@ -100,9 +107,6 @@ else if (Model.ModeIA == "simulation")
             <label class="form-label" for="demoFile">Image industrielle depuis ce PC</label>
             <input id="demoFile" class="form-control mb-3" type="file" accept="image/jpeg,image/png,image/webp" />
             <button id="btnAnalyserDemo" type="button" class="btn btn-sebn w-100 mb-3" disabled>🔎 Analyser l’image sélectionnée</button>
-            <div class="small text-muted mb-2">Échantillons industriels existants</div>
-            <button type="button" class="btn btn-outline-primary w-100 mb-2 btn-demo-sample" data-demo-url="/images/demo/defaut-detecte.jpg">Échantillon industriel — défaut détecté</button>
-            <button type="button" class="btn btn-outline-primary w-100 btn-demo-sample" data-demo-url="/images/demo/controle-sans-anomalie.jpg">Échantillon industriel — sans anomalie détectée</button>
         </div>
         <div id="demoAlerte"></div>
     </div>
@@ -172,7 +176,19 @@ else if (Model.ModeIA == "simulation")
         return /^[A-Za-z0-9+/]+={0,2}$/.test(base64) ? base64 : '';
     }
 
-    async function fetchAvecTimeout(url, options, dureeMs = 45000) {
+    async function lireReponseJson(rep) {
+        const contenu = await rep.text();
+        if (!contenu.trim()) {
+            throw new Error('Le serveur a retourné une réponse vide (HTTP ' + rep.status + ').');
+        }
+        try {
+            return JSON.parse(contenu);
+        } catch (err) {
+            throw new Error('Le serveur a retourné une réponse invalide (HTTP ' + rep.status + ').');
+        }
+    }
+
+    async function fetchAvecTimeout(url, options, dureeMs = 180000) {
         const controleur = new AbortController();
         const timer = setTimeout(() => controleur.abort(), dureeMs);
         try {
@@ -186,7 +202,14 @@ else if (Model.ModeIA == "simulation")
         return document.querySelector('select[name="IdPoste"]')?.value || 'P01';
     }
 
+    function matriculeOpActuel() {
+        return document.querySelector('select[name="MatriculeOp"]')?.value || '';
+    }
+
     function messageErreurCamera(err) {
+        if (err.name === 'AbortError') {
+            return 'Le service IA met plus de temps que prévu à répondre. Attendez quelques secondes puis relancez l’analyse.';
+        }
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
             return 'Accès à la caméra refusé. Veuillez autoriser la caméra dans votre navigateur.';
         }
@@ -225,9 +248,9 @@ else if (Model.ModeIA == "simulation")
             const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
                 headers: entetesApi(),
-                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel(), matriculeOp: matriculeOpActuel() })
             });
-            const data = await rep.json();
+            const data = await lireReponseJson(rep);
             if (!rep.ok || data.erreur) {
                 throw new Error(data.erreur || 'Analyse impossible.');
             }
@@ -328,9 +351,9 @@ else if (Model.ModeIA == "simulation")
             const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
                 headers: entetesApi(),
-                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel() })
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPosteActuel(), matriculeOp: matriculeOpActuel() })
             });
-            const data = await rep.json();
+            const data = await lireReponseJson(rep);
 
             if (!rep.ok || data.erreur) {
                 throw new Error(data.erreur || 'Analyse impossible.');
@@ -383,9 +406,9 @@ else if (Model.ModeIA == "simulation")
             const rep = await fetchAvecTimeout('/api/detect-photo', {
                 method: 'POST',
                 headers: entetesApi(),
-                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPoste })
+                body: JSON.stringify({ imageBase64: imageBase64, idPoste: idPoste, matriculeOp: matriculeOpActuel() })
             });
-            const data = await rep.json();
+            const data = await lireReponseJson(rep);
 
             if (data.erreur) {
                 alerteZone.innerHTML = '<div class="alert alert-warning">' + entitesHtml(data.erreur) + '</div>';

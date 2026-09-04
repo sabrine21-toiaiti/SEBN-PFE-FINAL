@@ -318,6 +318,72 @@ public class AppDataStore
         }
     }
 
+    public bool CreerUtilisateur(string login, string motDePasse, RoleUtilisateur role, string nomAffichage)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"INSERT INTO Utilisateurs (Login, MotDePasseHash, Role, NomAffichage)
+                                VALUES ($login, $hash, $role, $nom)";
+            cmd.Parameters.AddWithValue("$login", login);
+            cmd.Parameters.AddWithValue("$hash", Utilisateur.Hacher(motDePasse));
+            cmd.Parameters.AddWithValue("$role", role.ToString());
+            cmd.Parameters.AddWithValue("$nom", nomAffichage);
+            try
+            {
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
+            {
+                return false;
+            }
+        }
+    }
+
+    public bool ModifierUtilisateur(int idUtilisateur, string login, string nomAffichage,
+        RoleUtilisateur role, string? motDePasse)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = string.IsNullOrWhiteSpace(motDePasse)
+                ? @"UPDATE Utilisateurs SET Login = $login, NomAffichage = $nom, Role = $role
+                   WHERE IdUtilisateur = $id"
+                : @"UPDATE Utilisateurs SET Login = $login, NomAffichage = $nom, Role = $role,
+                   MotDePasseHash = $hash, NbTentatives = 0, VerrouJusqua = NULL
+                   WHERE IdUtilisateur = $id";
+            cmd.Parameters.AddWithValue("$login", login);
+            cmd.Parameters.AddWithValue("$nom", nomAffichage);
+            cmd.Parameters.AddWithValue("$role", role.ToString());
+            cmd.Parameters.AddWithValue("$id", idUtilisateur);
+            if (!string.IsNullOrWhiteSpace(motDePasse))
+                cmd.Parameters.AddWithValue("$hash", Utilisateur.Hacher(motDePasse));
+            try
+            {
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
+            {
+                return false;
+            }
+        }
+    }
+
+    public bool SupprimerUtilisateur(int idUtilisateur)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Utilisateurs WHERE IdUtilisateur = $id";
+            cmd.Parameters.AddWithValue("$id", idUtilisateur);
+            return cmd.ExecuteNonQuery() == 1;
+        }
+    }
+
     public int InsererAnomalie(string typeAnomalie, string classeYolo, double confiance,
         string imagePreuve, string idPoste, string matriculeOp)
     {
@@ -426,14 +492,81 @@ public class AppDataStore
         {
             using var connection = CreateConnection();
             using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT IdPoste, LigneProduction FROM Postes";
+            cmd.CommandText = "SELECT IdPoste, LigneProduction, COALESCE(IdCamera, '') FROM Postes ORDER BY IdPoste";
             using var reader = cmd.ExecuteReader();
             var result = new List<Poste>();
             while (reader.Read())
             {
-                result.Add(new Poste { IdPoste = reader.GetString(0), LigneProduction = reader.GetString(1) });
+                result.Add(new Poste { IdPoste = reader.GetString(0), LigneProduction = reader.GetString(1), IdCamera = reader.GetString(2) });
             }
             return result;
+        }
+    }
+
+    public List<Camera> ListeCameras()
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT IdCamera, StatutConnexion FROM Cameras ORDER BY IdCamera";
+            using var reader = cmd.ExecuteReader();
+            var result = new List<Camera>();
+            while (reader.Read())
+                result.Add(new Camera { IdCamera = reader.GetString(0), StatutConnexion = Enum.Parse<StatutConnexion>(reader.GetString(1)) });
+            return result;
+        }
+    }
+
+    public bool CreerCamera(string idCamera)
+    {
+        if (string.IsNullOrWhiteSpace(idCamera)) return false;
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO Cameras (IdCamera, StatutConnexion) VALUES ($id, 'Active')";
+            cmd.Parameters.AddWithValue("$id", idCamera.Trim());
+            try { return cmd.ExecuteNonQuery() == 1; } catch (SqliteException) { return false; }
+        }
+    }
+
+    public bool SupprimerCamera(string idCamera)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Cameras WHERE IdCamera = $id AND NOT EXISTS (SELECT 1 FROM Postes WHERE IdCamera = $id)";
+            cmd.Parameters.AddWithValue("$id", idCamera);
+            return cmd.ExecuteNonQuery() == 1;
+        }
+    }
+
+    public bool CreerPoste(string idPoste, string ligneProduction, string? idCamera)
+    {
+        if (string.IsNullOrWhiteSpace(idPoste) || string.IsNullOrWhiteSpace(ligneProduction)) return false;
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO Postes (IdPoste, LigneProduction, IdCamera) VALUES ($id, $ligne, $camera)";
+            cmd.Parameters.AddWithValue("$id", idPoste.Trim());
+            cmd.Parameters.AddWithValue("$ligne", ligneProduction.Trim());
+            cmd.Parameters.AddWithValue("$camera", string.IsNullOrWhiteSpace(idCamera) ? DBNull.Value : idCamera.Trim());
+            try { return cmd.ExecuteNonQuery() == 1; } catch (SqliteException) { return false; }
+        }
+    }
+
+    public bool SupprimerPoste(string idPoste)
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Postes WHERE IdPoste = $id";
+            cmd.Parameters.AddWithValue("$id", idPoste);
+            return cmd.ExecuteNonQuery() == 1;
         }
     }
 
@@ -460,6 +593,29 @@ public class AppDataStore
             using var reader = cmd.ExecuteReader();
             if (!reader.Read()) return null;
             return new Operateur { MatriculeOp = reader.GetString(0) };
+        }
+    }
+
+    public List<Operateur> ListeOperateurs()
+    {
+        lock (_verrou)
+        {
+            using var connection = CreateConnection();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT MatriculeOp, NomOp, PrenomOp, Equipe FROM Operateurs ORDER BY MatriculeOp";
+            using var reader = cmd.ExecuteReader();
+            var result = new List<Operateur>();
+            while (reader.Read())
+            {
+                result.Add(new Operateur
+                {
+                    MatriculeOp = reader.GetString(0),
+                    NomOp = reader.GetString(1),
+                    PrenomOp = reader.GetString(2),
+                    Equipe = reader.GetString(3)
+                });
+            }
+            return result;
         }
     }
 

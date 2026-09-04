@@ -18,6 +18,7 @@ public class FluxVideoModel : PageModel
     }
 
     public List<SebnWeb.Models.Poste> Postes { get; set; } = new();
+    public List<Operateur> Operateurs { get; set; } = new();
     public bool ApiDisponible { get; set; }
     public string ModeIA { get; set; } = "";
     public string? ImageBase64 { get; set; }
@@ -26,6 +27,7 @@ public class FluxVideoModel : PageModel
     public string? Message { get; set; }
     public int TimeoutPerteCameraSecondes { get; set; } = 5;
     [BindProperty] public string IdPoste { get; set; } = "";
+    [BindProperty] public string MatriculeOp { get; set; } = "";
 
     public async Task<IActionResult> OnGet()
     {
@@ -35,6 +37,8 @@ public class FluxVideoModel : PageModel
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
+        Operateurs = _store.ListeOperateurs();
+        MatriculeOp = Operateurs.FirstOrDefault()?.MatriculeOp ?? "";
         TimeoutPerteCameraSecondes = _store.ObtenirTimeoutPerteCameraSecondes();
         var etatIA = await _api.ObtenirEtatAsync();
         ApiDisponible = etatIA != null;
@@ -50,6 +54,7 @@ public class FluxVideoModel : PageModel
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Postes = _store.ListePostes();
+        Operateurs = _store.ListeOperateurs();
         TimeoutPerteCameraSecondes = _store.ObtenirTimeoutPerteCameraSecondes();
         ApiDisponible = await _api.EstDisponibleAsync();
         if (!ApiDisponible)
@@ -64,6 +69,16 @@ public class FluxVideoModel : PageModel
         {
             Statut = "erreur";
             Message = "Poste sélectionné invalide.";
+            return Page();
+        }
+
+        var matriculeOp = string.IsNullOrWhiteSpace(MatriculeOp)
+            ? Operateurs.FirstOrDefault()?.MatriculeOp
+            : MatriculeOp.Trim();
+        if (matriculeOp == null || _store.TrouverOperateur(matriculeOp) == null)
+        {
+            Statut = "erreur";
+            Message = "Opérateur sélectionné invalide.";
             return Page();
         }
 
@@ -95,7 +110,7 @@ public class FluxVideoModel : PageModel
                         resultat.Anomalie.Confiance,
                         imagePreuve ?? "captures/live.jpg",
                         idPoste,
-                        "OP101"
+                        matriculeOp
                     );
                 }
             }
@@ -113,9 +128,9 @@ public class FluxVideoModel : PageModel
     private bool RolesAutorises()
     {
         var role = HttpContext.Session.GetString("Role");
-        return role == nameof(RoleUtilisateur.SuperviseurQualite) ||
-               role == nameof(RoleUtilisateur.SuperviseurPit) ||
-               role == nameof(RoleUtilisateur.OperateurProduction) ||
-               role == nameof(RoleUtilisateur.Administrateur);
+         return role == nameof(RoleUtilisateur.AuditeurQualite) ||
+             role == nameof(RoleUtilisateur.AdminPit) ||
+             role == nameof(RoleUtilisateur.SuperviseurProduction) ||
+             role == nameof(RoleUtilisateur.Direction);
     }
 }

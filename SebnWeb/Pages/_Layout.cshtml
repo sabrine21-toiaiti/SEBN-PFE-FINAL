@@ -34,27 +34,30 @@ else
                 <div id="sebnNotifBox" style="margin: 10px 0; display:none;">
                     <div class="alert alert-warning py-2 px-2" style="font-size:12px; margin-bottom:0;">
                         <span id="sebnNotifCount">0</span> alerte(s) caméra — <a href="/FluxVideo" id="sebnNotifLien" style="color:inherit; text-decoration:underline;">voir</a>
+                        <button type="button" id="sebnNotifLues" class="btn btn-sm btn-link p-0 ms-1" style="color:inherit;">Acquitter</button>
                     </div>
                 </div>
             }
 
-            @if (roleCode == nameof(RoleUtilisateur.SuperviseurQualite))
+            @if (roleCode == nameof(RoleUtilisateur.AuditeurQualite))
             {
                 <a href="/Dashboard" class="@(page=="/Dashboard"?"active":"")">📊 <span>Dashboard Qualité</span></a>
+                <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Détection</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.SuperviseurPit))
+            @if (roleCode == nameof(RoleUtilisateur.AdminPit) || roleCode == nameof(RoleUtilisateur.Direction))
             {
                 <a href="/DashboardPit" class="@(page=="/DashboardPit"?"active":"")">📊 <span>Dashboard PIT</span></a>
                 <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Surveillance</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.OperateurProduction))
+            @if (roleCode == nameof(RoleUtilisateur.SuperviseurProduction))
             {
-                <a href="/Operateur" class="@(page=="/Operateur"?"active":"")">🧰 <span>Espace opérateur</span></a>
-                <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Détection</span></a>
+                <a href="/Operateur" class="@(page=="/Operateur"?"active":"")">🏭 <span>Supervision Production</span></a>
+                <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Surveillance ligne</span></a>
+                <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique équipe</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.Administrateur))
+            @if (roleCode == nameof(RoleUtilisateur.AdminPit))
             {
                 <a href="/Administration" class="@(page=="/Administration"?"active":"")">⚙️ <span>Administration</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
@@ -111,6 +114,17 @@ else
                 }
             } catch (e) { /* silencieux */ }
         }
+        document.getElementById('sebnNotifLues')?.addEventListener('click', async () => {
+            const notifs = await (await fetch('/api/notifications')).json();
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            for (const notif of notifs) {
+                await fetch('/api/notifications/' + notif.idNotification + '/lue', {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token || '' }
+                });
+            }
+            sebnRafraichirNotifs();
+        });
         sebnRafraichirNotifs();
         setInterval(sebnRafraichirNotifs, 15000);
         </text>

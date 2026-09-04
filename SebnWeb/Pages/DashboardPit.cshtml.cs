@@ -19,7 +19,7 @@ public class DashboardPitModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
-        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.SuperviseurPit))
+        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.Direction))
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         Stats = _store.StatsGenerales();

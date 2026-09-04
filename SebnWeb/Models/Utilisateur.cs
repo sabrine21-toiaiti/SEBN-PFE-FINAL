@@ -28,9 +28,9 @@ public abstract class Utilisateur
     public abstract string ConsulterDashboard();
 }
 
-public class OperateurProduction : Utilisateur
+public class SuperviseurProduction : Utilisateur
 {
-    public OperateurProduction() => Role = RoleUtilisateur.OperateurProduction;
+    public SuperviseurProduction() => Role = RoleUtilisateur.SuperviseurProduction;
 
     public override string ConsulterDashboard() => "Dashboard : flux de production";
 
@@ -39,25 +39,25 @@ public class OperateurProduction : Utilisateur
     public void CloturerAnomalie(Anomalie anomalie) => anomalie.Cloturer();
 }
 
-public class SuperviseurQualite : Utilisateur
+public class AuditeurQualite : Utilisateur
 {
-    public SuperviseurQualite() => Role = RoleUtilisateur.SuperviseurQualite;
+    public AuditeurQualite() => Role = RoleUtilisateur.AuditeurQualite;
 
     public override string ConsulterDashboard() => "Dashboard : indicateurs qualité (KPI)";
 }
 
-public class SuperviseurPIT : Utilisateur
+public class AdminPit : Utilisateur
 {
-    public SuperviseurPIT() => Role = RoleUtilisateur.SuperviseurPit;
+    public AdminPit() => Role = RoleUtilisateur.AdminPit;
 
     public override string ConsulterDashboard() => "Dashboard : supervision système";
 }
 
-public class Administrateur : Utilisateur
+public class Direction : Utilisateur
 {
-    public Administrateur() => Role = RoleUtilisateur.Administrateur;
+    public Direction() => Role = RoleUtilisateur.Direction;
 
-    public override string ConsulterDashboard() => "Dashboard : administration système";
+    public override string ConsulterDashboard() => "Dashboard : synthèse stratégique";
 }
 
 public static class UtilisateurFactory
@@ -66,10 +66,10 @@ public static class UtilisateurFactory
     {
         Utilisateur u = role switch
         {
-            RoleUtilisateur.OperateurProduction => new OperateurProduction(),
-            RoleUtilisateur.SuperviseurQualite => new SuperviseurQualite(),
-            RoleUtilisateur.SuperviseurPit => new SuperviseurPIT(),
-            RoleUtilisateur.Administrateur => new Administrateur(),
+            RoleUtilisateur.SuperviseurProduction => new SuperviseurProduction(),
+            RoleUtilisateur.AuditeurQualite => new AuditeurQualite(),
+            RoleUtilisateur.AdminPit => new AdminPit(),
+            RoleUtilisateur.Direction => new Direction(),
             _ => throw new ArgumentOutOfRangeException(nameof(role))
         };
         u.IdUtilisateur = id;

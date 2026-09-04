@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS Utilisateurs (
     IdUtilisateur INTEGER PRIMARY KEY AUTOINCREMENT,
     Login TEXT UNIQUE NOT NULL,
     MotDePasseHash TEXT NOT NULL,
-    Role TEXT NOT NULL CHECK(Role IN ('OperateurProduction','SuperviseurQualite','SuperviseurPit','Administrateur')),
+    Role TEXT NOT NULL CHECK(Role IN ('SuperviseurProduction','AuditeurQualite','AdminPit','Direction')),
     NomAffichage TEXT NOT NULL,
     NbTentatives INTEGER NOT NULL DEFAULT 0,
     VerrouJusqua TEXT

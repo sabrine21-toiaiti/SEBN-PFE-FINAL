@@ -46,7 +46,7 @@ public static class SeedGenerator
         int seedAnomaliesCount = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
         var markerValue = reader.IsDBNull(6) ? null : reader.GetString(6);
 
-        bool donneesStatiqueOk = utilisateursCount >= 5 && camerasCount >= 4 && postesCount >= 4 && operateursCount >= 12;
+        bool donneesStatiqueOk = utilisateursCount >= 4 && camerasCount >= 4 && postesCount >= 4 && operateursCount >= 12;
         bool utilisateursCoherents = true;
 
         using (var verifyUsers = connection.CreateCommand())
@@ -65,11 +65,10 @@ public static class SeedGenerator
             }
 
             var expectedUsers = new Dictionary<string, (string Role, string Hash)> {
-                ["superviseur"] = ("SuperviseurQualite", Utilisateur.Hacher("sebn2026")),
-                ["qualite"] = ("SuperviseurQualite", Utilisateur.Hacher("sebn2026")),
-                ["pit"] = ("SuperviseurPit", Utilisateur.Hacher("sebn2026")),
-                ["admin"] = ("Administrateur", Utilisateur.Hacher("sebn2026")),
-                ["operateur"] = ("OperateurProduction", Utilisateur.Hacher("sebn2026"))
+                ["superviseur"] = ("SuperviseurProduction", Utilisateur.Hacher("sebn2026")),
+                ["qualite"] = ("AuditeurQualite", Utilisateur.Hacher("sebn2026")),
+                ["admin"] = ("AdminPit", Utilisateur.Hacher("sebn2026")),
+                ["direction"] = ("Direction", Utilisateur.Hacher("sebn2026"))
             };
 
             foreach (var expected in expectedUsers)
@@ -121,7 +120,7 @@ public static class SeedGenerator
         deleteLegacyUsers.Transaction = tx;
         deleteLegacyUsers.CommandText = @"
             DELETE FROM Utilisateurs
-            WHERE Login NOT IN ('superviseur', 'qualite', 'pit', 'admin', 'operateur');
+            WHERE Login NOT IN ('superviseur', 'qualite', 'admin', 'direction');
         ";
         deleteLegacyUsers.ExecuteNonQuery();
 
@@ -129,35 +128,28 @@ public static class SeedGenerator
         insertCommand.Transaction = tx;
         insertCommand.CommandText = @"
             INSERT INTO Utilisateurs (IdUtilisateur, Login, MotDePasseHash, Role, NomAffichage)
-            VALUES (1, 'superviseur', $hash1, 'SuperviseurQualite', 'Mehdi Trabelsi')
+            VALUES (1, 'superviseur', $hash1, 'SuperviseurProduction', 'Superviseur Production')
             ON CONFLICT(Login) DO UPDATE SET
                 MotDePasseHash = excluded.MotDePasseHash,
                 Role = excluded.Role,
                 NomAffichage = excluded.NomAffichage;
 
             INSERT INTO Utilisateurs (IdUtilisateur, Login, MotDePasseHash, Role, NomAffichage)
-            VALUES (2, 'qualite', $hash2, 'SuperviseurQualite', 'Ines Gharbi')
+            VALUES (2, 'qualite', $hash2, 'AuditeurQualite', 'Auditeur Qualité')
             ON CONFLICT(Login) DO UPDATE SET
                 MotDePasseHash = excluded.MotDePasseHash,
                 Role = excluded.Role,
                 NomAffichage = excluded.NomAffichage;
 
             INSERT INTO Utilisateurs (IdUtilisateur, Login, MotDePasseHash, Role, NomAffichage)
-            VALUES (3, 'pit', $hash3, 'SuperviseurPit', 'Sami Bouzid')
+            VALUES (3, 'admin', $hash3, 'AdminPit', 'Admin PIT')
             ON CONFLICT(Login) DO UPDATE SET
                 MotDePasseHash = excluded.MotDePasseHash,
                 Role = excluded.Role,
                 NomAffichage = excluded.NomAffichage;
 
             INSERT INTO Utilisateurs (IdUtilisateur, Login, MotDePasseHash, Role, NomAffichage)
-            VALUES (4, 'admin', $hash4, 'Administrateur', 'Nadia Mansouri')
-            ON CONFLICT(Login) DO UPDATE SET
-                MotDePasseHash = excluded.MotDePasseHash,
-                Role = excluded.Role,
-                NomAffichage = excluded.NomAffichage;
-
-            INSERT INTO Utilisateurs (IdUtilisateur, Login, MotDePasseHash, Role, NomAffichage)
-            VALUES (5, 'operateur', $hash5, 'OperateurProduction', 'Kamel Ferjani')
+            VALUES (4, 'direction', $hash4, 'Direction', 'Direction')
             ON CONFLICT(Login) DO UPDATE SET
                 MotDePasseHash = excluded.MotDePasseHash,
                 Role = excluded.Role,

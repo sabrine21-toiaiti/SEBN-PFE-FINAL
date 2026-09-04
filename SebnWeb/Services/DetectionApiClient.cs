@@ -140,7 +140,8 @@ public class DetectionApiClient
             imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
             content.Add(imageContent, "file", nomFichier);
 
-            var rep = await _http.PostAsync("/detect-image", content);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+            var rep = await _http.PostAsync("/detect-image", content, timeout.Token);
             var contenu = await rep.Content.ReadAsStringAsync();
             _logger.LogInformation("[Detection] IA response status: {StatusCode}; response time: {ElapsedSeconds:F3} s", (int)rep.StatusCode, chronometre.Elapsed.TotalSeconds);
             if (!rep.IsSuccessStatusCode)

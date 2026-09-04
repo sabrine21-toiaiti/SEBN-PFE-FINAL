@@ -11,7 +11,7 @@ public class OperateurModel : PageModel
     {
         if (HttpContext.Session.GetString("NomAffichage") == null)
             return RedirectToPage("/Index");
-        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.OperateurProduction))
+        if (HttpContext.Session.GetString("Role") != nameof(RoleUtilisateur.SuperviseurProduction))
             return Redirect(RoleAccess.PageAccueil(HttpContext));
 
         return Page();

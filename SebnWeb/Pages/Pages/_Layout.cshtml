@@ -29,23 +29,23 @@ else
             <div class="user-name">@nomAffichage</div>
             <div class="user-role">@role</div>
 
-            @if (roleCode == nameof(RoleUtilisateur.SuperviseurQualite))
+            @if (roleCode == nameof(RoleUtilisateur.AuditeurQualite))
             {
                 <a href="/Dashboard" class="@(page=="/Dashboard"?"active":"")">📊 <span>Dashboard Qualité</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.SuperviseurPit))
+            @if (roleCode == nameof(RoleUtilisateur.AdminPit) || roleCode == nameof(RoleUtilisateur.Direction))
             {
                 <a href="/DashboardPit" class="@(page=="/DashboardPit"?"active":"")">📊 <span>Dashboard PIT</span></a>
                 <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Surveillance</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.OperateurProduction))
+            @if (roleCode == nameof(RoleUtilisateur.SuperviseurProduction))
             {
                 <a href="/Operateur" class="@(page=="/Operateur"?"active":"")">🧰 <span>Espace opérateur</span></a>
                 <a href="/FluxVideo" class="@(page=="/FluxVideo"?"active":"")">📹 <span>Détection</span></a>
             }
-            @if (roleCode == nameof(RoleUtilisateur.Administrateur))
+            @if (roleCode == nameof(RoleUtilisateur.AdminPit))
             {
                 <a href="/Administration" class="@(page=="/Administration"?"active":"")">⚙️ <span>Administration</span></a>
                 <a href="/Historique" class="@(page=="/Historique"?"active":"")">🕓 <span>Historique</span></a>
